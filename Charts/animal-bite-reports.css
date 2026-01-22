@@ -1,0 +1,791 @@
+* {
+    box-sizing: border-box;
+}
+
+/* ===== Title & Distribution Styles ===== */
+.charts-content {
+    background-color: #fff;
+    border-radius: 20px;
+    margin-top: 10px;
+    padding: 30px;
+}
+
+/* ===== Title Styling ===== */
+.title {
+    align-items: flex-start;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+}
+ 
+.charts-content .title h1 {
+    color: #226b85;
+    font-weight: 500; 
+    font-size: 40px;
+    margin-top: 0;
+    margin-bottom: 0;
+    letter-spacing: -1px;
+    line-height: 40px;
+}
+
+.title h1 span {
+    color: #226b85 !important;
+    display: block;
+    font-size: 14px;
+    font-weight: 400;
+    margin-top: 5px;
+}
+
+/* ===== Distribution Title & Map Wrapper ===== */
+.distribution-title {
+    align-items: center;
+    border: 2px solid #226b85;
+    border-radius: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    justify-content: center;
+    margin-top: 20px;
+    padding: 15px;
+}
+
+.distribution-title h1 {
+    color: #226b85;
+    font-size: 40px;
+    margin: 0;
+    font-weight: 900;
+    text-align: center;
+    letter-spacing: -1px;
+    line-height: 50px;
+}
+
+.distribution-title span {
+    color: #226b85;
+    display: block;
+    font-size: 20px;
+    font-weight: 400;
+    margin-left: auto;
+    margin-right: auto;
+    max-width: 600px;
+    line-height: 25px;
+}
+
+.map-wrapper {
+    display: flex;
+    gap: 20px;
+    margin-top: 25px;
+}
+
+/* ===== Barangay Data Table Styles ===== */
+
+.shares-per-baranggay {
+    background-color: #ffffff;
+    border: 2px solid #226b85;
+    border-radius: 15px;
+    flex-shrink: 0;
+    max-width: 350px;
+    min-width: 250px;
+    letter-spacing: -1px;
+    padding: 24px 28px;
+}
+
+/* ===== Choropleth Map Container ===== */
+.choropleth-map {
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    margin-left: 10px;
+    min-height: 500px;
+}
+
+.choropleth-map h2 {
+    color: #226b85;
+    font-size: 35px;
+    font-weight: 900;
+    margin: 0 0 20px 0;
+    letter-spacing: -1px;
+}
+
+.choropleth-map img {
+    background-color: #226b85;
+    border-radius: 10px;
+    width: auto;
+}
+
+.choropleth-map > div {
+    border: 2px solid #226b85;
+    flex: 1;
+    width: auto;
+}
+
+/* ===== Header Row & Main Data Rows ===== */
+.header-row {
+    color: #226b85;
+    display: flex;
+    font-size: 18px;
+    font-weight: bold;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    letter-spacing: -0.5px;
+    font-weight: 800;
+}
+
+/* ===== Row Items & Barangay Data ===== */
+.main-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.row {
+    align-items: center;
+    color: #226b85;
+    display: flex;
+    font-size: 16px;
+    justify-content: space-between;
+    gap: 50px;
+}
+
+.baranggay {
+    font-weight: 500;
+}
+
+.percentage {
+    font-weight: 600;
+    text-align: right;
+}
+
+.cases-wrapper {
+    display: flex;
+    gap: 20px;
+    margin-top: 25px;
+}
+
+.total-cases {
+    background-color: #226b85;
+    border: 2px solid #226b85;
+    border-radius: 15px;
+    color: #fff;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    padding: 15px;
+    text-align: left;
+}
+
+.total-cases h2 {
+    color: #fff;
+    font-size: 25px;
+    font-weight: 400;
+    letter-spacing: -1px;
+    margin: 0;
+}
+
+.total-cases h1 {
+    color: #fff;
+    font-size: 60px;
+    font-weight: 800;
+    letter-spacing: -3px;
+    line-height: 60px;
+    margin: 10px 0 10px 0;
+}
+
+.total-cases span {
+    color: #fff;
+    font-size: 14px;
+    font-weight: 400;
+    margin-top: 5px;
+}   
+
+.bite-report {
+    border: 2px solid #226b85;
+    border-radius: 15px;
+    color: #226b85;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    padding: 15px;
+    text-align: left;
+}
+
+.bite-report h2 {
+    color: #226b85;
+    font-size: 25px;
+    font-weight: 400;
+    line-height: -1px;
+    margin: 0;
+}
+
+.bite-report h1 {
+    color: #226b85;
+    font-size: 60px;
+    font-weight: 800;
+    letter-spacing: -3px;
+    line-height: 60px;
+    margin: 10px 0 10px 0;
+}
+
+.bite-report span {
+    color: #226b85;
+    font-size: 14px;
+    font-weight: 400;
+    margin-top: 5px;
+}
+
+/* ===== Vaccination Sessions & Bite Sources Wrapper ===== */
+.sessions-wrapper {
+    display: flex;
+    gap: 20px;
+    margin-top: 25px;
+}
+
+/* ===== Vaccination Sessions Card ===== */
+.vaxx-sessions {
+    border: 2px solid #226b85;
+    border-radius: 20px;
+    color: #226b85;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    padding: 20px;
+    text-align: left;
+}
+
+.bite-sources {
+    background-color: #226b85;
+    border: 2px solid #226b85;
+    border-radius: 20px;
+    color: #fff;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    padding: 15px;
+    text-align: left;
+}
+
+.vaxx-sessions h2 {
+    color: #226b85;
+    font-size: 25px;
+    font-weight: 400;
+    margin: 0 0 20px 0;
+    letter-spacing: -1px;
+}
+
+.vaxx-sessions span {
+    color: #226b85;
+    font-size: 14px;
+    font-weight: 400;
+    margin-top: 15px;
+}
+
+.bar-chart {
+    align-items: flex-end;
+    display: flex;
+    gap: 20px;
+    justify-content: space-around;
+    min-height: 200px;
+    padding: 20px 0px;
+}
+
+.bar-item {
+    align-items: center;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.percentage-label {
+    color: #226b85;
+    font-size: 16px;
+    font-weight: 800;
+    min-height: 24px;
+    letter-spacing: -1px;
+}
+
+.bar-container {
+    align-items: flex-end;
+    background-color: transparent;
+    display: flex;
+    height: 300px;
+    position: relative;
+    width: 100%;
+}
+
+@keyframes gradientFlow {
+    0% {
+        background-position: 0% 0%;
+    }
+    100% {
+        background-position: 0% 100%;
+    }
+}
+
+.bar-fill {
+    background: linear-gradient(180deg, #226b85 0%, #3a8fa8 12%, #61dafb 25%, #7ae5f7 37%, #61dafb 50%, #3a8fa8 62%, #226b85 75%, #3a8fa8 87%, #61dafb 100%);
+    background-size: 100% 400%;
+    animation: gradientFlow 8s linear infinite;
+    transition: height 0.3s ease;
+    width: 100%;
+}
+
+/* ===== Dose Label ===== */
+.dose-label {
+    border-top: 2px solid #226b85;
+    color: #226b85;
+    font-size: 16px;
+    font-weight: 600;
+    padding-top: 8px;
+    text-align: center;
+    width: 100%;
+}
+
+/* ===== Bite Sources Title & Content ===== */
+.bite-sources h2 {
+    color: #fff;
+    font-size: 27px;
+    font-weight: 400;
+    margin: 0 0 0px 0;
+    letter-spacing: -1px;
+}
+
+.bite-sources > span {
+    color: #fff;
+    display: block;
+    font-size: 14px;
+    font-weight: 200;
+    line-height: 18px;
+    margin-bottom: 30px;
+}
+
+.bite-list-header {
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+}
+
+.list-title {
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.list-count {
+    color: #fff;
+    font-size: 16px;
+    font-weight: 400;
+}
+
+.horizontal-bar-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.horizontal-bar-item {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.animal-name {
+    color: #fff;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: -0.5px;
+}
+
+.horizontal-bar-container {
+    background-color: rgba(255, 255, 255, 0.2);
+    border-radius: 5px;
+    height: 35px;
+    overflow: hidden;
+    width: 100%;
+}
+
+@keyframes horizontalGradientFlow {
+    0% {
+        background-position: 0% 0%;
+    }
+    100% {
+        background-position: -200% 0%;
+    }
+}
+
+.horizontal-bar-fill {
+    background: linear-gradient(90deg, 
+        #7fcce6 0%, 
+        #6ec5dc 8%, 
+        #61dafb 16%, 
+        #72e0f6 24%, 
+        #7fcce6 32%, 
+        #6ec5dc 40%, 
+        #61dafb 48%, 
+        #72e0f6 56%, 
+        #7fcce6 64%, 
+        #75cde6 72%, 
+        #61dafb 80%, 
+        #72e0f6 88%, 
+        #7fcce6 96%, 
+        #61dafb 100% );
+    background-size: 400% 100%;
+    animation: horizontalGradientFlow 30s linear infinite;
+    border-radius: 5px;
+    height: 100%;
+    transition: width 0.5s ease;
+}
+
+/* ===== Exposure Category Distribution Section ===== */
+.cat-distribution {
+    align-items: center;
+    background-color: #226b85;
+    border: 2px solid #226b85;
+    border-radius: 15px;
+    display: flex;
+    gap: 30px;
+    margin-top: 25px;
+    padding: 25px;
+}
+
+/* ===== Categories Section Header ===== */
+.categories-section {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+}
+
+.categories-section h2 {
+    color: #fff;
+    font-size: 34px;
+    font-weight: 700;
+    margin: 0 0 20px 0;
+    letter-spacing: -1px;
+}
+
+.categories-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.category-item {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.category-header {
+    align-items: center;
+    display: flex;
+    gap: 12px;
+    margin-bottom: 0px;
+}
+
+.category-indicator {
+    border-radius: 50%;
+    flex-shrink: 0;
+    height: 20px;
+    width: 20px;
+}
+
+.category-item h3 {
+    color: #fff;
+    font-size: 18px;
+    font-weight: 700;
+    margin: 0;
+}
+
+.category-item p {
+    color: #fff;
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 15px;
+    margin-top: 3px;
+    padding-left: 32px;
+}
+
+/* ===== Pie Chart Visualization ===== */
+.pie-chart {
+    align-items: center;
+    display: flex;
+    flex-shrink: 0;
+    height: 280px;
+    justify-content: center;
+    width: 280px;
+    position: relative;
+}
+
+.pie-tooltip {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(34, 107, 133, 0.95);
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-family: 'Poppins', sans-serif;
+    text-align: center;
+    pointer-events: none;
+    z-index: 10;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    animation: tooltipFadeIn 0.2s ease;
+}
+
+@keyframes tooltipFadeIn {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+
+.pie-tooltip strong {
+    display: block;
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.pie-tooltip div {
+    font-size: 24px;
+    font-weight: 600;
+}
+
+.pie-chart-svg {
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+    height: 100%;
+    width: 100%;
+}
+
+.pie-slice {
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+}
+
+.pie-slice:hover {
+    opacity: 0.85;
+}
+
+.pie-slice-path {
+    transition: transform 0.2s ease;
+    transform-origin: center;
+}
+
+.pie-slice:hover .pie-slice-path {
+    transform: scale(1.05);
+}
+
+.pie-slice title {
+    font-family: 'Poppins', sans-serif;
+}
+
+/* ===== Monthly Cases Bar Chart Section ===== */
+.monthly-cases {
+    background-color: #fff;
+    border: 2px solid #226b85;
+    border-radius: 15px;
+    margin-top: 25px;
+    padding: 25px;
+}
+
+.monthly-cases h2 {
+    color: #226b85;
+    font-size: 34px;
+    font-weight: 800;
+    letter-spacing: -1px;
+    margin: 0 0 20px 0;
+}
+
+/* ===== Monthly Bar Chart Container ===== */
+.monthly-bar-chart {
+    align-items: flex-end;
+    border-radius: 10px;
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+    min-height: 250px;
+    padding: 20px;
+}
+
+.monthly-bar-item {
+    align-items: center;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.monthly-bar-container {
+    align-items: flex-end;
+    display: flex;
+    height: 200px;
+    position: relative;
+    width: 100%;
+}
+
+/* ===== Monthly Bar Fill ===== */
+.monthly-bar-fill {
+    background: linear-gradient(180deg, 
+        #61dafb 0%, 
+        #5ad4f0 10%, 
+        #52cde6 20%, 
+        #4ac6dc 30%, 
+        #42bfd2 40%, 
+        #3ab8c8 50%, 
+        #32b1be 60%, 
+        #2aaab4 70%, 
+        #2da0a8 80%, 
+        #2a8b9a 90%, 
+        #226b85 100%);
+    min-height: 10px;
+    transition: height 0.4s ease;
+    width: 100%;
+}
+
+.monthly-label {
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    text-align: center;
+    letter-spacing: -1px;
+}
+
+.month-name {
+    color: #226b85;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.month-cases {
+    color: #226b85;
+    font-size: 12px;
+    font-weight: 400;
+    margin-bottom: -30px;
+    margin-top: 5px; 
+}
+
+/* Age Group Pyramid */
+.age-group-pyramid {
+    background-color: #226b85;
+    border: 2px solid #226b85;
+    border-radius: 15px;
+    margin-top: 25px;
+    padding: 25px;
+}
+
+.age-group-pyramid h2 {
+    color: #fff;
+    font-size: 34px;
+    font-weight: 700;
+    margin: 0 0 20px 0;
+    text-align: center;
+    letter-spacing: -2px;
+}
+
+.pyramid-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 15px;
+    padding: 0 20%;
+}
+
+.gender-label {
+    color: #fff;
+    font-size: 16px;
+    font-weight: 400;
+    letter-spacing: -0.5px;
+}
+
+.male-label {
+    text-align: left;
+}
+.female-label {
+    text-align: right;
+}
+
+/* ===== Pyramid Chart Structure ===== */
+.pyramid-chart {
+    border-bottom: 2px solid #fff;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 0px;
+}
+
+.pyramid-row {
+    align-items: center;
+    display: grid;
+    margin-bottom: 5px;
+    grid-template-columns: 1fr 60px 1fr;
+    height: 25px;
+}
+
+.male-bar {
+    background-color: #fff;
+    height: 100%;
+    justify-self: end;
+    transition: width 0.3s ease;
+}
+
+.female-bar {
+    background-color: #fff;
+    height: 100%;
+    justify-self: start;
+    transition: width 0.3s ease;
+}
+
+.age-label {
+    color: #fff;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 0;
+    text-align: center;
+    width: 60px;
+}
+
+.pyramid-scale {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+    width: 100%;
+    padding: 0;
+}
+
+.pyramid-scale span {
+    color: #fff;
+    font-size: 12px;
+    font-weight: 500;
+    text-align: center;
+}
+
+.pyramid-scale span:first-child {
+    text-align: left;
+}
+
+.pyramid-scale span:last-child {
+    text-align: right;
+}
+
+.pyramid-footer {
+    display: flex;
+    justify-content: center;
+    margin-top: 15px;
+}
+
+/* ===== Footer Label ===== */
+.footer-label {
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+}
+

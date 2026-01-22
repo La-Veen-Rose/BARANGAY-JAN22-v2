@@ -1,0 +1,524 @@
+.prescription-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 14px;
+  overflow: hidden;
+  z-index: 12000;
+}
+
+.prescription-container {
+  background: #8E2626;
+  color: #ffffff;
+  width: 48vw;
+  max-width: 940px;
+  max-height: 90vh;
+  border-radius: 16px;
+  padding: 22px 24px 18px;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+}
+
+.prescription-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.prescription-title {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -1px;
+}
+
+.prescription-close {
+  background: transparent;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  filter: invert(1);
+}
+
+.prescription-close img {
+  width: 20px;
+  height: 20px;
+}
+
+.prescription-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.prescription-icon-btn {
+  background: transparent;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  filter: invert(1);
+}
+
+.prescription-icon-btn img {
+  width: 20px;
+  height: 20px;
+}
+
+.prescription-body {
+  background: #ffffff;
+  color: #4b1b1b;
+  border-radius: 12px;
+  padding: 18px 20px 16px;
+  overflow-y: auto;
+}
+
+.prescription-body::-webkit-scrollbar {
+  width: 10px;
+}
+
+.prescription-body::-webkit-scrollbar-track {
+  background: #f7f3f3;
+  border-radius: 8px;
+}
+
+.prescription-body::-webkit-scrollbar-thumb {
+  background: #8E2626;
+  border-radius: 8px;
+  border: 2px solid #f7f3f3;
+}
+
+.prescription-body::-webkit-scrollbar-thumb:hover {
+  background: #a03030;
+}
+
+/* Preview layout tweaks (does not affect data-entry modal) */
+.prescription-body-preview {
+  background: #f8f4f4;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.prescription-row {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 12px 16px;
+  margin-bottom: 12px;
+}
+
+.prescription-row.two-cols {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.prescription-row.four-cols {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.prescription-row.three-cols {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.prescription-field.full {
+  grid-column: 1 / -1;
+}
+
+.prescription-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.prescription-input {
+  width: 100%;
+  border-radius: 8px;
+  border: none;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  background: #f7f3f3;
+  color: #4b1b1b;
+  box-sizing: border-box;
+}
+
+.prescription-input.multiline {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.prescription-input:focus {
+  outline: 2px solid #c07c7c;
+}
+
+.prescription-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.prescription-footer-right {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  flex: 1;
+}
+
+.prescription-btn {
+  border-radius: 10px;
+  padding: 10px 22px;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.prescription-btn.secondary {
+  background: #ffffff;
+  color: #8E2626;
+}
+
+.prescription-btn.primary {
+  background: #f3c15e;
+  color: #4b1b1b;
+}
+
+.prescription-btn:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.prescription-signature-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.prescription-signature-input {
+  flex: 1;
+}
+
+.prescription-signature-btn {
+  white-space: nowrap;
+}
+
+.signature-notice {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #2e7d32;
+  background: #e8f5e9;
+  border-radius: 6px;
+  padding: 4px 8px;
+  display: inline-block;
+}
+
+/* Print template (used only for PDF generation) */
+
+.prescription-print-template {
+  font-family: "Poppins", Arial, sans-serif;
+  color: #222222;
+  background: #ffffff;
+  padding: 32px 40px 28px;
+  width: 760px;
+  max-width: 100%;
+  border-radius: 16px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+  border: 1px solid #e4d4d4;
+  position: relative;
+  overflow: hidden;
+}
+
+.prescription-print-template > * {
+  position: relative;
+  z-index: 1;
+}
+
+.rx-watermark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 60%;
+  height: auto;
+  opacity: 0.03; /* faint but visible */
+  pointer-events: none;
+  z-index: 0;
+}
+
+.rx-header {
+  text-align: center;
+  margin-bottom: 14px;
+}
+
+.rx-doctor-name {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 800;
+  color: #8E2626;
+  font-family: "Poppins", Arial, sans-serif;
+  letter-spacing: -1px;
+}
+
+.rx-specialty {
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.rx-clinic-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin-top: 10px;
+}
+
+.rx-clinic-block {
+  flex: 0 0 auto; /* let blocks size to content so hours stays at far right */
+  font-size: 11px;
+}
+
+.rx-clinic-hours {
+  text-align: right;
+}
+
+.rx-clinic-title {
+  font-weight: 700;
+  flex: 1;
+}
+
+.rx-clinic-text {
+  line-height: 1.3;
+}
+
+.rx-top-block {
+  margin-bottom: 8px;
+}
+
+.rx-columns {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.rx-column {
+  flex: 0 0 48%;
+}
+
+.rx-divider {
+  border-top: 1px solid #444444;
+  margin: 10px 0 8px;
+}
+
+.rx-info-lines {
+  font-size: 11px;
+}
+
+.rx-info-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.rx-label {
+  min-width: 48px;
+  font-weight: 600;
+}
+
+.rx-line {
+  border-bottom: 1px solid #999999;
+  min-width: 80px;
+  padding: 0 4px 2px;
+  margin-right: 12px;
+}
+
+.rx-line-wide {
+  flex: 1;
+}
+
+.rx-body-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+  align-items: flex-start;
+}
+
+.rx-symbol {
+  font-size: 42px;
+  font-weight: 700;
+  font-family: "Times New Roman", serif;
+  margin-right: 8px;
+  line-height: 1;
+  padding-top: 4px;
+}
+
+.rx-prescription-text {
+  flex: 1;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.rx-section-label {
+  margin-top: 10px;
+  margin-bottom: 2px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #8E2626;
+}
+
+.rx-line-item {
+  margin: 1px 0;
+}
+
+.rx-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-top: 28px;
+  font-size: 11px;
+}
+
+.rx-signature-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.rx-lic-block div {
+  margin: 2px 0;
+}
+
+.rx-signature-block {
+  text-align: right;
+  position: relative;
+}
+
+.signature-line {
+  margin-bottom: 4px;
+  color: #aaaaaa;
+}
+
+.signature-name {
+  font-weight: 600;
+}
+
+.signature-note {
+  font-style: italic;
+  color: #777777;
+}
+
+.signature-image-wrapper {
+  position: absolute;
+  right: 0;
+  left: 110px;
+  bottom: 0px;
+}
+
+.signature-image {
+  max-height: 100px;
+  max-width: 260px;
+  object-fit: contain;
+  display: block;
+  margin-left: auto;
+}
+
+/* Signature drawing modal */
+
+.signature-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2100;
+}
+
+.signature-container {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 18px 20px 16px;
+  width: 560px;
+  max-width: 90vw;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35);
+}
+
+.signature-title {
+  margin: 0 0 10px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #8E2626;
+}
+
+.signature-canvas {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  border: 1px solid #d3c7c7;
+  background: transparent;
+  touch-action: none;
+}
+
+.signature-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.signature-actions-right {
+  display: flex;
+  gap: 8px;
+}
+
+.vaccine-section {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem 0.75rem;
+  align-items: start;
+}
+
+.vaccine-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.checkbox-group {
+  display: flex;
+  gap: 1rem;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #8E2626;
+}
+
+.checkbox-label span {
+  user-select: none;
+}
+
+.checkbox-label:hover {
+  opacity: 0.8;
+}

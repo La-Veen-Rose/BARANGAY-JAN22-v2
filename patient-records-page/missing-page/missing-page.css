@@ -1,0 +1,414 @@
+/* ====================================
+   BASE
+   ==================================== */
+* {
+  box-sizing: border-box;
+  font-family: "Poppins", sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+/* ====================================
+   LAYOUT
+   ==================================== */
+.missing-header-wrapper {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  position: fixed;
+  top: 0;
+  left: 348px;
+  width: calc(100% - 348px);
+  padding: 20px 0;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.missing-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  max-width: 1150px;
+  margin-bottom: 20px;
+  gap: 16px;
+}
+
+.missing-header .header-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.missing-header .header-text h2 {
+  font-size: 36px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  color: #8E2626;
+  margin: 0;
+}
+
+.missing-header .header-text .subtext {
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: -0.5px;
+  line-height: 0;
+  color: #8E2626;
+  margin-top: 0px;
+}
+
+.missing-header .missing-header-image {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+}
+
+.missing-header .missing-header-image img {
+  max-width: 210px;
+  height: auto;
+  width: auto;
+  object-fit: contain;
+}
+
+/* ====================================
+   TABS SECTION
+   ==================================== */
+.missing-tabs-verified {
+  display: flex;
+  gap: 0;
+  position: relative;
+  z-index: 0;
+  margin-bottom: 0;
+  width: 100%;
+  max-width: 1150px;
+}
+
+.missing-tab-verified {
+  padding: 10px 24px;
+  border: none;
+  background-color: #7a7a7a;
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s;
+  position: relative;
+  outline: none;
+  border-radius: 0;
+}
+
+.missing-tab-verified:first-child {
+  border-radius: 10px 0 0 0;
+}
+
+.missing-tab-verified:last-child {
+  border-radius: 0 10px 0 0;
+}
+
+.missing-tab-verified.active {
+  background-color: #a83232;
+  color: #fff;
+  z-index: 2;
+}
+
+.missing-tab-verified:hover:not(.active) {
+  background-color: #8a8a8a;
+}
+
+.missing-records-table-section {
+  margin-top: 0;
+  padding: 20px;
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 1150px;
+  min-height: 400px;
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+  color: #8E2626;
+  background-color: white;
+  border-radius: 0 10px 10px 10px;
+  border: 1px solid #D7D7D7;
+  box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.1);
+}
+
+.missing-search-bar {
+  width: 519px;
+  height: 35px;
+  display: flex;
+  border-radius: 5px;
+  margin: 10px 0 20px;
+  position: relative;
+  background-color: #f3f3f3;
+  font-weight: 300;
+}
+
+.missing-search-bar input{
+  width: 519px;
+  height: 35px;
+  font-size: 12px;
+  font-weight: 300px;
+  background-color: transparent;
+  color: #737373;
+  border: none;
+  outline: none;
+  border-radius: 5px;
+  padding: 20px 10px;
+ margin-left: 20px 20px 20px;
+}
+
+.missing-search-bar img {
+  width: 30px;
+  height: 30px;
+  position: absolute;
+  top: 10%;
+  left: 450px;
+  transform: translate(50%);
+  cursor: pointer;
+}
+
+.missing-records-buttons-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 600px;
+}
+
+.filters {
+  width: 110px;
+  height: 35px;
+  background-color: #f3f3f3;
+  color: #737373;
+  border: none;
+  border-radius: 5px;
+  margin: 20px 20px 20px;
+  cursor: pointer;
+  left: 550px;
+}
+
+/* ====================================
+   TABLE WRAPPER
+   ==================================== */
+.missing-records-table-section {
+  background-color: white;
+  border-radius: 10px 10px 10px 10px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+  color: #a83232;
+  margin-top: -3px;
+  max-height: calc(100vh - 220px);
+  max-width: 1150px;
+  min-height: 400px;
+  overflow-y: auto;
+  padding-top: 20px;
+  position: relative;
+  width: 100%;
+  z-index: 1;
+}
+
+/* ====================================
+   SEARCH BAR
+   ==================================== */
+.missing-records-search-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.missing-records-search-bar {
+  width: 500px;
+  height: 35px;
+  display: flex;
+  align-items: center;
+  border-radius: 5px;
+  position: relative;
+  background-color: #f3f3f3;
+  font-weight: 300;
+  flex-shrink: 0;
+}
+
+.missing-records-search-bar .missing-records-search-icon {
+  width: 20px;
+  height: 20px;
+  position: absolute;
+  left: 8px;
+  pointer-events: none;
+}
+
+.missing-records-search-bar input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  background-color: transparent;
+  border: none;
+  outline: none;
+  padding: 0 10px 0 35px;
+  font-size: 12px;
+  font-weight: 300;
+  line-height: 35px;
+  color: #1a1a1a;
+}
+
+.missing-records-search-bar input::placeholder {
+  color: #737373;
+}
+
+.missing-records-refresh-btn {
+  padding: 8px 16px;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.buttons-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+}
+
+.filters {
+  background-color: #f3f3f3;
+  border: none;
+  border-radius: 5px;
+  color: #737373;
+  cursor: pointer;
+  height: 35px;
+  left: 550px;
+  margin: 20px 20px 20px;
+  width: 110px;
+}
+
+/* ====================================
+   TABLE
+   ==================================== */
+.missing-records-table {
+  border-collapse: collapse;
+  margin: 0;
+  width: 100%;
+}
+
+.missing-records-table th,
+.missing-records-table td {
+  border-bottom: 1px solid #e0e0e0;
+  color: #a83232;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 12px 16px;
+  text-align: left;
+}
+
+.missing-records-table th:last-child,
+.missing-records-table td:last-child {
+  text-align: right;
+}
+
+/* ====================================
+   CATEGORY BADGES
+   ==================================== */
+.missing-records-category-badge {
+  align-items: center;
+  background-color: #d7d7d7;
+  border-radius: 6px;
+  color: #333;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 700;
+  height: 24px;
+  justify-content: center;
+  line-height: 24px;
+  min-width: 28px;
+  padding: 0 8px;
+}
+
+.missing-records-category-badge.cat-1 {
+  background-color: #2ea043;
+  color: #fff;
+}
+
+.missing-records-category-badge.cat-2 {
+  background-color: #f4a526;
+  color: #333;
+}
+
+.missing-records-category-badge.cat-3 {
+  background-color: #8e2626;
+  color: #fff;
+}
+
+/* ====================================
+   ACTIONS
+   ==================================== */
+.missing-records-actions-group {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.missing-records-view-btn,
+.missing-records-vax-btn {
+  background-color: #8e2626;
+  border: none;
+  border-radius: 5px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+}
+
+/* ====================================
+   SCROLLBAR
+   ==================================== */
+.missing-records-table-section::-webkit-scrollbar {
+  width: 10px;
+}
+
+.missing-records-table-section::-webkit-scrollbar-track {
+  background: #f4e7e7;
+  border-radius: 10px;
+}
+
+.missing-records-table-section::-webkit-scrollbar-thumb {
+  background: #8e2626;
+  border-radius: 10px;
+}
+
+.missing-records-table-section::-webkit-scrollbar-thumb:hover {
+  background: #6d1d1d;
+}
+
+.missing-records-table-section {
+  scrollbar-color: #8e2626 #f4e7e7;
+  scrollbar-width: thin;
+}
+
+/* ====================================
+   BUTTON LEGACY (kept for compatibility)
+   ==================================== */
+.missing-records-view-btn,
+.missing-records-vax-btn {
+  background-color: #8E2626;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 12px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+

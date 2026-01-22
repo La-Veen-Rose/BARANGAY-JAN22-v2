@@ -1,0 +1,140 @@
+.abtc-records-action-stack {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	justify-content: flex-end;
+	width: 100%;
+}
+
+.abtc-records-delete-btn {
+	background: #8e2626;
+	color: #fff;
+	border: none;
+	padding: 4px 12px;
+	border-radius: 6px;
+	cursor: pointer;
+	font-weight: 600;
+	transition: background 0.2s ease, transform 0.1s ease;
+}
+
+.abtc-records-delete-btn:hover {
+	background: #8f1f19;
+}
+
+.abtc-records-delete-btn:active {
+	transform: translateY(1px);
+}
+
+.delete-overlay {
+	position: fixed;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.45);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 12000;
+	padding: 16px;
+}
+
+.delete-modal {
+	background: #fff;
+	border-radius: 12px;
+	max-width: 480px;
+	width: 100%;
+	padding: 24px;
+	box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+}
+
+.fade {
+	animation: fade-in 200ms ease forwards;
+}
+
+@keyframes fade-in {
+	from { opacity: 0; }
+	to { opacity: 1; }
+}
+
+.delete-modal h3 {
+	margin: 0 0 8px;
+	color: #2d2d2d;
+}
+
+.delete-warning {
+	color: #8e2626;
+	font-weight: 600;
+	margin: 0 0 8px;
+}
+
+.delete-instruction {
+	margin: 0 0 6px;
+	color: #444;
+}
+
+.delete-actions {
+	margin-top: 12px;
+}
+
+.delete-phrase {
+	background: #f6e9e9;
+	border: 1px solid #d3b5b5;
+	border-radius: 8px;
+	padding: 10px 12px;
+	color: #5a1b1b;
+	font-weight: 700;
+	margin-bottom: 10px;
+}
+
+.delete-input {
+	width: 100%;
+	padding: 10px 12px;
+	border: 1px solid #d6d6d6;
+	border-radius: 8px;
+	font-size: 14px;
+	margin-bottom: 8px;
+}
+
+.delete-error {
+	color: #b3261e;
+	font-size: 13px;
+	margin-bottom: 10px;
+}
+
+.delete-actions {
+	display: flex;
+	gap: 10px;
+	justify-content: flex-end;
+}
+
+.delete-confirm-btn,
+.delete-cancel-btn {
+	padding: 10px 14px;
+	border: none;
+	border-radius: 8px;
+	cursor: pointer;
+	font-weight: 700;
+}
+
+.delete-confirm-btn {
+	background: #b3261e;
+	color: #fff;
+}
+
+.delete-confirm-btn:disabled {
+	background: #d4a6a3;
+	cursor: not-allowed;
+}
+
+.delete-cancel-btn {
+	background: #f1f1f1;
+	color: #333;
+}
+
+.delete-cancel-btn:hover {
+	background: #e2e2e2;
+}
+
+.terminated-table th:last-child,
+.terminated-table td:last-child,
+.terminated-actions-cell {
+	text-align: right;
+}

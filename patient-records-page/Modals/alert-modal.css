@@ -1,0 +1,89 @@
+/* ===== ALERT MODAL ===== */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeInModal {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.alert-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 11002;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.alert-modal {
+  background-color: white;
+  border-radius: 12px;
+  padding: 30px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  max-width: 400px;
+  width: 90%;
+  text-align: center;
+  animation: fadeInModal 0.3s ease-in-out;
+}
+
+.alert-modal h3 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #8E2626;
+  margin-bottom: 15px;
+  margin-top: 0;
+}
+
+.alert-modal p {
+  font-size: 14px;
+  color: #333;
+  margin-bottom: 25px;
+  line-height: 1.5;
+}
+
+.alert-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.alert-btn {
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background-color: #0066cc;
+  color: white;
+  min-width: 90px;
+}
+
+.alert-btn:hover {
+  background-color: #0052a3;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 102, 204, 0.3);
+}
+
+.alert-btn:active {
+  background-color: #003d82;
+}

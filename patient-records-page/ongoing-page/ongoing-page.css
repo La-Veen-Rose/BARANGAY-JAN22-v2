@@ -1,0 +1,331 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Poppins", sans-serif;
+}
+
+.ongoing-header-wrapper {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  position: fixed;
+  top: 0;
+  left: 348px;
+  width: calc(100% - 348px);
+  padding: 20px 0;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.ongoing-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  max-width: 1150px;
+  margin-bottom: 20px;
+  gap: 16px;
+}
+
+.ongoing-header .header-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.ongoing-header .header-text h2 {
+  font-size: 36px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  color: var(--color-primary);
+  margin: 0;
+}
+
+.ongoing-header .header-text .subtext {
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: -0.5px;
+  line-height: 0;
+  color: var(--color-primary);
+  margin-top: 0px;
+}
+
+.ongoing-header .ongoing-header-image {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+}
+
+.ongoing-header .ongoing-header-image img {
+  max-width: 210px;
+  height: auto;
+  width: auto;
+  object-fit: contain;
+}
+
+/* ====================================
+   TABS SECTION
+   ==================================== */
+.ongoing-tabs-verified {
+  display: flex;
+  gap: 0;
+  position: relative;
+  z-index: 0;
+  margin-bottom: 0;
+  width: 100%;
+  max-width: 1150px;
+}
+
+.ongoing-tab-verified {
+  padding: 10px 24px;
+  border: none;
+  background-color: #7a7a7a;
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s;
+  position: relative;
+  outline: none;
+  border-radius: 0;
+}
+
+.ongoing-tab-verified:first-child {
+  border-radius: 10px 0 0 0;
+}
+
+.ongoing-tab-verified:last-child {
+  border-radius: 0 10px 0 0;
+}
+
+.ongoing-tab-verified.active {
+  background-color: #a83232;
+  color: #fff;
+  z-index: 2;
+}
+
+.ongoing-tab-verified:hover:not(.active) {
+  background-color: #8a8a8a;
+}
+
+.ongoing-records-table-section {
+  margin-top: 0;
+  padding: 20px;
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 1150px;
+  min-height: 400px;
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+  color: #8E2626;
+  background-color: white;
+  border-radius: 0 10px 10px 10px;
+  border: 1px solid #D7D7D7;
+  box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Highlight animation for rows navigated-to from other pages */
+.ongoing-records-table tbody tr.highlighted-row {
+  animation: highlightFlash 1s ease-in-out;
+}
+.ongoing-records-table tbody tr.highlighted-row td {
+  transition: background-color 0.2s ease;
+}
+
+@keyframes highlightFlash {
+  0% { background-color: #fff7d6; }
+  40% { background-color: #fff7d6; }
+  100% { background-color: transparent; }
+}
+
+.ongoing-search-bar {
+  width: 519px;
+  height: 35px;
+  display: flex;
+  border-radius: 5px;
+  margin: 50px 20px 20px;
+  position: relative;
+  background-color: #f3f3f3;
+  font-weight: 300;
+}
+
+.search-bar input{
+  width: 519px;
+  height: 35px;
+  font-size: 12px;
+  font-weight: 300px;
+  background-color: transparent;
+  color: #737373;
+  border: none;
+  outline: none;
+  border-radius: 5px;
+  padding: 20px 10px;
+ margin-left: 20px 20px 20px;
+}
+
+.search-bar img{
+  width: 30px;
+  height: 30px;
+  position: absolute;
+  top: 10%;
+  left: 450px;
+  transform: translate(50%);
+  cursor: pointer;
+}
+
+.buttons-group{
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 600px;
+}
+
+.filters{
+  width: 110px;
+  height: 35px;
+  background-color: #f3f3f3;
+  color: #737373;
+  border: none;
+  border-radius: 5px;
+  margin: 20px 20px 20px;
+  cursor: pointer;
+  left: 550px;
+}
+
+/* ====================================
+   TABLE STYLES
+   ==================================== */
+.ongoing-records-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ongoing-records-table thead th {
+  font-weight: 700;
+  color: var(--color-primary);
+  font-size: 13px;
+  letter-spacing: 0px;
+  padding: 12px;
+  text-align: left;
+  border-bottom: 2px solid #8E2626;
+  white-space: nowrap;
+}
+
+.ongoing-records-table td,
+.ongoing-records-table th {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid #e0e0e0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+
+.ongoing-records-table th:last-child,
+.ongoing-records-table td:last-child {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* ====================================
+   BUTTONS & ACTIONS
+   ==================================== */
+.ongoing-records-action-buttons {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.ongoing-records-actions-group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.ongoing-records-view-btn,
+.ongoing-records-vax-btn {
+  background-color: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 12px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+/* ====================================
+   CATEGORY BADGES
+   ==================================== */
+.ongoing-records-category-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 12px;
+  line-height: 24px;
+  background-color: #d7d7d7;
+  color: #333;
+}
+
+.ongoing-records-category-badge.cat-1 {
+  background-color: #FFA500; /* Category I - orange */
+  color: #fff;
+}
+
+.ongoing-records-category-badge.cat-2 {
+  background-color: #FF7F50; /* Category II - red-orange */
+  color: #fff;
+}
+
+.ongoing-records-category-badge.cat-3 {
+  background-color: #8E2626; /* Category III - system signature red */
+  color: #fff;
+}
+
+/* ====================================
+   SCROLLBAR STYLING
+   ==================================== */
+.ongoing-records-table-section::-webkit-scrollbar {
+  width: 10px;
+}
+
+.ongoing-records-table-section::-webkit-scrollbar-track {
+  background: #f4e7e7;
+  border-radius: 10px;
+}
+
+.ongoing-records-table-section::-webkit-scrollbar-thumb {
+  background: #8E2626;
+  border-radius: 10px;
+}
+
+.ongoing-records-table-section::-webkit-scrollbar-thumb:hover {
+  background: #6d1d1d;
+}
+
+.ongoing-records-table-section {
+  scrollbar-color: #8E2626 #f4e7e7;
+  scrollbar-width: thin;
+}
+

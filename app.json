@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "Barangay",
+    "slug": "Barangay",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./app/assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./app/assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./app/assets/adaptive-icon.png",
+        "edgeToEdgeEnabled": true,
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.raven.x123.Barangay"
+    },
+    "web": {
+      "favicon": "./app/assets/favicon.png"
+    },
+    "androidStatusBar": {
+      "hidden": true,
+      "style": "light"
+    },
+    "androidNavigationBar": {
+      "visible": "immersive"
+    },
+    "plugins": [
+      "expo-font",
+      "expo-asset"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "45c64a9c-178d-4d7f-bf76-6304c3667e37"
+      }
+    }
+  }
+}

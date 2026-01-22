@@ -1,0 +1,332 @@
+/* ====================================
+   GLOBAL STYLES
+   ==================================== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Poppins", sans-serif;
+}
+
+/* ====================================
+   HEADER SECTION
+   ==================================== */
+.verified-header-wrapper {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  position: fixed;
+  top: 0;
+  left: 348px;
+  width: calc(100% - 348px);
+  padding: 20px 0;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.verified-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  max-width: 1150px;
+  margin-bottom: 20px;
+  gap: 16px;
+}
+
+.verified-header .header-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.verified-header .header-text h2 {
+  font-size: 36px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  color: #8E2626;
+  margin: 0;
+}
+
+.verified-header .header-text .subtext {
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: -0.5px;
+  line-height: 0;
+  color: #8E2626;
+  margin-top: 0px;
+}
+
+.verified-header .header-image {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+}
+
+.verified-header .header-image img {
+  max-width: 210px;
+  height: auto;
+  width: auto;
+  object-fit: contain;
+}
+
+/* ====================================
+   TABS SECTION
+   ==================================== */
+.records-tabs-verified {
+  display: flex;
+  gap: 0;
+  position: relative;
+  z-index: 0;
+  margin-bottom: 0;
+  width: 100%;
+  max-width: 1150px;
+}
+
+.records-tab-verified {
+  padding: 10px 24px;
+  border: none;
+  background-color: #7a7a7a;
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s;
+  position: relative;
+  outline: none;
+  border-radius: 0;
+}
+
+.records-tab-verified:first-child {
+  border-radius: 10px 0 0 0;
+}
+
+.records-tab-verified:last-child {
+  border-radius: 0 10px 0 0;
+}
+
+.records-tab-verified.active {
+  background-color: #a83232;
+  color: #fff;
+  z-index: 2;
+}
+
+.records-tab-verified:hover:not(.active) {
+  background-color: #8a8a8a;
+}
+
+/* ====================================
+   TABLE CONTAINER
+   ==================================== */
+.verified-records-table-section {
+  margin-top: 0;
+  padding: 20px;
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 1150px;
+  min-height: 400px;
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+  color: #8E2626;
+  background-color: white;
+  border-radius: 0 10px 10px 10px;
+  border: 1px solid #D9D9D9;
+  box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* ====================================
+   SEARCH BAR
+   ==================================== */
+.verified-records-search-bar {
+  width: 500px;
+  height: 35px;
+  display: flex;
+  align-items: center;
+  border-radius: 5px;
+  margin: 5px 0 20px 0;
+  position: relative;
+  background-color: #f3f3f3;
+  font-weight: 300;
+}
+
+.verified-records-search-bar .search-icon {
+  width: 20px;
+  height: 20px;
+  position: absolute;
+  left: 8px;
+  pointer-events: none;
+}
+
+.verified-records-search-bar input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  background-color: transparent;
+  border: none;
+  outline: none;
+  padding: 0 10px 0 35px;
+  font-size: 12px;
+  font-weight: 300;
+  line-height: 35px;
+  color: #1a1a1a;
+}
+
+.verified-records-search-bar input::placeholder {
+  color: #737373;
+}
+
+.verified-records-buttons-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 10px;
+}
+
+/* ====================================
+   TABLE STYLES
+   ==================================== */
+.verified-records-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.verified-records-table thead th {
+  font-weight: 700;
+  color: #8E2626;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  padding: 12px;
+  text-align: left;
+  border-bottom: 2px solid #e0e0e0;
+  white-space: nowrap;
+}
+
+.verified-records-table td,
+.verified-records-table th {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid #e0e0e0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #8E2626;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.verified-records-table th:last-child,
+.verified-records-table td:last-child {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* ====================================
+   BUTTONS & ACTIONS
+   ==================================== */
+.verified-records-actions-group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.verified-records-view-btn,
+.verified-records-vax-btn {
+  background-color: #8E2626;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 12px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+/* ====================================
+   CATEGORY BADGES
+   ==================================== */
+.verified-records-category-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 12px;
+  line-height: 24px;
+  background-color: #d7d7d7;
+  color: #333;
+}
+
+.verified-records-category-badge.cat-1 {
+  background-color: #FFA500; /* Category I - orange */
+  color: #fff;
+}
+
+.verified-records-category-badge.cat-2 {
+  background-color: #FF7F50; /* Category II - red-orange */
+  color: #fff;
+}
+
+.verified-records-category-badge.cat-3 {
+  background-color: #8E2626; /* Category III - system signature red */
+  color: #fff;
+}
+
+/* ====================================
+   SCROLLBAR STYLING
+   ==================================== */
+.verified-records-table-section::-webkit-scrollbar {
+  width: 10px;
+}
+
+.verified-records-table-section::-webkit-scrollbar-track {
+  background: #f4e7e7;
+  border-radius: 10px;
+}
+
+.verified-records-table-section::-webkit-scrollbar-thumb {
+  background: #8E2626;
+  border-radius: 10px;
+}
+
+.verified-records-table-section::-webkit-scrollbar-thumb:hover {
+  background: #6d1d1d;
+}
+
+.verified-records-table-section {
+  scrollbar-color: #8E2626 #f4e7e7;
+  scrollbar-width: thin;
+}
+
+/* ====================================
+   RESPONSIVE DESIGN
+   ==================================== */
+@media (max-width: 700px) {
+  .verified-records-table-section {
+    overflow-x: auto;
+  }
+
+  .verified-records-table {
+    min-width: 800px;
+  }
+
+  .verified-records-view-btn,
+  .verified-records-vax-btn {
+    padding: 6px 8px;
+    font-size: 12px;
+    height: 32px;
+  }
+}

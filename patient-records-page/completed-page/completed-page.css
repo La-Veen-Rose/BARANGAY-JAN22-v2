@@ -1,0 +1,231 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Poppins", sans-serif;
+}
+
+/* ====================================
+   HEADER WRAPPER
+   ==================================== */
+.completed-header-wrapper {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  position: fixed;
+  top: 0;
+  left: 348px;
+  width: calc(100% - 348px);
+  padding: 20px 0;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.completed-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  max-width: 1150px;
+  margin-bottom: 20px;
+  gap: 16px;
+}
+
+.completed-header .header-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.completed-header .header-text h2 {
+  font-size: 36px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  color: #8E2626;
+  margin: 0;
+}
+
+.completed-header .header-text .subtext {
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: -0.5px;
+  line-height: 0;
+  color: #8E2626;
+  margin-top: 0px;
+}
+
+.completed-header .completed-header-image {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+}
+
+.completed-header .completed-header-image img {
+  max-width: 210px;
+  height: auto;
+  width: auto;
+  object-fit: contain;
+}
+
+/* ====================================
+   TABS SECTION
+   ==================================== */
+.completed-tabs-verified {
+  display: flex;
+  gap: 0;
+  position: relative;
+  z-index: 0;
+  margin-bottom: 0;
+  width: 100%;
+  max-width: 1150px;
+}
+
+.completed-tab-verified {
+  padding: 10px 24px;
+  border: none;
+  background-color: #7a7a7a;
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s;
+  position: relative;
+  outline: none;
+  border-radius: 0;
+}
+
+.completed-tab-verified:first-child {
+  border-radius: 10px 0 0 0;
+}
+
+.completed-tab-verified:last-child {
+  border-radius: 0 10px 0 0;
+}
+
+.completed-tab-verified.active {
+  background-color: #a83232;
+  color: #fff;
+  z-index: 2;
+}
+
+.completed-tab-verified:hover:not(.active) {
+  background-color: #8a8a8a;
+}
+
+/* ====================================
+   TABLE WRAPPER
+   ==================================== */
+.completed-records-table-section {
+  background-color: white;
+  border-radius: 10px 10px 10px 10px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+  color: #a83232;
+  margin-top: -3px;
+  max-height: calc(100vh - 220px);
+  max-width: 1150px;
+  min-height: 400px;
+  overflow-y: auto;
+  padding-top: 20px;
+  position: relative;
+  width: 100%;
+  z-index: 1;
+}
+
+/* ====================================
+   SEARCH BAR
+   ==================================== */
+.completed-records-search-bar {
+  align-items: center;
+  background-color: #f3f3f3;
+  border-radius: 5px;
+  display: flex;
+  font-weight: 300;
+  height: 35px;
+  margin: 10px 20px 20px;
+  position: relative;
+  width: 519px;
+}
+
+.completed-records-search-bar input {
+  background-color: transparent;
+  border: none;
+  border-radius: 5px;
+  color: #737373;
+  font-size: 12px;
+  font-weight: 300;
+  height: 35px;
+  outline: none;
+  padding: 20px 10px;
+  width: 519px;
+}
+
+.completed-records-search-bar img {
+  cursor: pointer;
+  height: 30px;
+  left: 450px;
+  position: absolute;
+  top: 10%;
+  transform: translate(50%);
+  width: 30px;
+}
+
+.completed-records-buttons-group {
+  align-items: center;
+  display: flex;
+  gap: 5px;
+  margin-left: 600px;
+}
+
+.filters {
+  background-color: #f3f3f3;
+  border: none;
+  border-radius: 5px;
+  color: #737373;
+  cursor: pointer;
+  height: 35px;
+  left: 550px;
+  margin: 20px 20px 20px;
+  width: 110px;
+}
+
+.records-table {
+  width: 95%;
+  border-collapse: collapse;
+  margin: 20px;
+}
+
+.records-table th, .records-table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid #e0e0e0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #a83232;
+}
+
+.records-table th {
+  font-weight: 600;
+}
+
+.category-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  background-color: #f4c542;
+  border-radius: 5px;
+  color: white;
+  font-weight: 500;
+}
+
+.view-btn{
+  background-color: #8E2626;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+

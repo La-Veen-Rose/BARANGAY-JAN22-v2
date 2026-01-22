@@ -1,0 +1,347 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Poppins", sans-serif;
+}
+
+.records-header-wrapper {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  position: fixed;
+  top: 0;
+  left: 348px;
+  width: calc(100% - 348px);
+  padding: 20px 0;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+/* Sync with navbar responsive widths */
+@media (max-width: 480px) {
+  .records-header-wrapper {
+    position: relative;
+    left: 0;
+    width: 100%;
+  }
+}
+
+.records-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  max-width: 1150px;
+  margin-bottom: 20px;
+}
+
+.records-header .header-text h2 {
+  font-size: 36px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  color: var(--color-primary);
+}
+
+.records-header .header-text h6 {
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: -0.5px;
+  line-height: 1px;
+  color: var(--color-primary);
+}
+
+.records-header .header-image {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.records-header .header-image img {
+  max-width: 30%;
+  height: auto;
+  max-height: 120px;
+  object-fit: contain;
+}
+
+.records-subtext {
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: -0.5px;
+  line-height: 1px;
+  color: var(--color-primary);
+  margin-top: 5px;
+}
+
+.records-tabs {
+  display: flex;
+  gap: 0;
+  position: relative;
+  z-index: 0;
+  margin-bottom: 0;
+  width: 100%;
+  max-width: 1150px;
+}
+
+.records-tab {
+  padding: 10px 24px;
+  border: none;
+  background-color: #7a7a7a;
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s;
+  position: relative;
+  outline: none;
+  border-radius: 0;
+}
+
+.records-tab:first-child {
+  border-radius: 10px 0 0 0;
+}
+
+.records-tab:last-child {
+  border-radius: 0 10px 0 0;
+}
+
+.records-tab.active {
+  background-color: #a83232;
+  color: #fff;
+  z-index: 2;
+}
+
+.records-tab:hover:not(.active) {
+  background-color: #8a8a8a;
+}
+
+
+.abtc-records-table-section, .records-table-section {
+  margin-top: 0;
+  margin-left: 0;
+  padding: 20px;
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 1150px;
+  min-height: calc(100vh - 180px);
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+  background-color: white;
+  border-radius: 0 10px 10px 10px;
+  box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1);
+  border: 1px solid #D9D9D9;
+}
+
+/* Red vertical scrollbar styling */
+.abtc-records-table-section::-webkit-scrollbar,
+.records-table-section::-webkit-scrollbar {
+  width: 10px;
+}
+
+.abtc-records-table-section::-webkit-scrollbar-track,
+.records-table-section::-webkit-scrollbar-track {
+  background: #f4e7e7;
+  border-radius: 10px;
+}
+
+.abtc-records-table-section::-webkit-scrollbar-thumb,
+.records-table-section::-webkit-scrollbar-thumb {
+  background: var(--color-primary);
+  border-radius: 10px;
+}
+
+.abtc-records-table-section::-webkit-scrollbar-thumb:hover,
+.records-table-section::-webkit-scrollbar-thumb:hover {
+  background: #6d1d1d;
+}
+
+.abtc-records-table-section,
+.records-table-section {
+  scrollbar-color: #8E2626 #f4e7e7;
+  scrollbar-width: thin;
+}
+
+.records-search-bar {
+  width: 500px;
+  height: 35px;
+  display: flex;
+  align-items: center;
+  border-radius: 5px;
+  margin: 5px 0px 5px 0px;
+  position: relative;
+  background-color: #f3f3f3;
+}
+
+.records-search-bar .search-icon {
+  width: 20px;
+  height: 20px;
+  position: absolute;
+  left: 8px;
+  cursor: pointer;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.records-search-bar input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  background-color: transparent;
+  border: none;
+  outline: none;
+  padding: 0 10px 0 35px;
+  font-size: 12px;
+  font-weight: 300;
+  line-height: 35px;
+  color: #1a1a1a;
+  position: relative;
+  z-index: 10;
+}
+
+.records-search-bar input::placeholder {
+  color: #999;
+  opacity: 1;
+  padding-left: 0px;
+}
+
+.abtc-records-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow-x: hidden;
+}
+
+.abtc-records-table thead {
+  background-color: transparent;
+}
+
+.abtc-records-table th {
+  padding: 15px 12px;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 700;
+  color: #8E2626;
+  border-bottom: 2px solid #8E2626;
+  white-space: nowrap;
+}
+
+.abtc-records-table td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid #D7D7D7;
+  font-size: 13px;
+  font-weight: 500;
+  color: #8E2626;
+  white-space: nowrap;
+}
+
+/* Right-align the Actions column (last column) for both table variants */
+.abtc-records-table th:last-child,
+.records-table th:last-child,
+.abtc-records-table td:last-child,
+.records-table td:last-child {
+  text-align: right;
+}
+
+.abtc-records-table tbody tr:hover {
+  background-color: #fafafa;
+}
+
+.abtc-records-category-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background-color: #f4a526;
+  border-radius: 50%;
+  color: white;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.abtc-records-actions-group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  justify-content: flex-end;
+}
+
+/* Ensure non-prefixed actions group also aligns right */
+.records-actions-group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  justify-content: flex-end;
+}
+
+.abtc-records-view-btn {
+  background-color: #8E2626;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 5px 10px;
+  transition: background-color 0.2s;
+}
+
+.abtc-records-view-btn:hover {
+  background-color: #6d1d1d;
+}
+
+.abtc-records-vax-btn {
+  background-color: #8E2626;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 5px 10px;
+  transition: background-color 0.2s;
+}
+
+.abtc-records-vax-btn:hover {
+  background-color: #4a1414;
+}
+
+/* Category badge – rectangular indicator with color by category */
+.records-category-badge,
+.abtc-records-category-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 12px;
+  line-height: 24px;
+  background-color: #d7d7d7; /* default */
+  color: #333;
+}
+
+.records-category-badge.cat-1,
+.abtc-records-category-badge.cat-1 {
+  background-color: #FFA500; /* Category I - orange */
+  color: #FFFFFF;
+}
+
+.records-category-badge.cat-2,
+.abtc-records-category-badge.cat-2 {
+  background-color: #FF7F50; /* Category II - red-orange */
+  color: #FFFFFF;
+}
+
+.records-category-badge.cat-3,
+.abtc-records-category-badge.cat-3 {
+  background-color: #8E2626; /* Category III - system signature red */
+  color: #FFFFFF;
+}

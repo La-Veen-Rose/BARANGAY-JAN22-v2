@@ -1,0 +1,590 @@
+/* Overlay base */
+.pep-overlay {
+  position: fixed;
+  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 15, 15, 0.55);
+  z-index: 11001; /* Above navbar (50) and logout overlay (10000) */
+  padding: 20px;
+  box-sizing: border-box;
+  pointer-events: auto;
+}
+
+.pep-modal {
+  width: 790px;
+  max-width: calc(100% - 55px);
+  background: #fff;
+  border-radius: 12px;
+  /* ensure modal doesn't overflow viewport height; allow internal scrolling */
+  max-height: calc(100vh - 60px);
+  overflow: auto;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding: 0;
+}
+
+/* Header */
+.pep-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: linear-gradient(90deg, rgba(232,50,50,0.03), rgba(232,50,50,0.01));
+  border-bottom: 2px solid rgba(142,38,38,0.06);
+}
+.pep-title {
+  color: #8E2626;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+.pep-close {
+  background: transparent;
+  border: none;
+  font-size: 22px;
+  cursor: pointer;
+  color: #8E2626;
+}
+
+.pep-qr-title { 
+  letter-spacing: -0.5px;
+  color: #8E2626;
+}
+
+/* patient row */
+.pep-patient-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 18px;
+  gap: 12px;
+}
+.pep-patient-name {
+  font-weight: 700;
+  color: #8E2626;
+}
+.pep-date-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pep-date-field input.date-input {
+  border: 1px solid #e2bebe;
+  padding: 6px;
+  border-radius: 6px;
+}
+.pep-set-today-btn {
+  background: #8E2626;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  white-space: nowrap;
+}
+.pep-set-today-btn:hover {
+  background: #6d1d1d;
+}
+.pep-set-today-btn:active {
+  transform: scale(0.98);
+}
+
+/* main content container */
+.pep-content {
+  padding: 12px 18px 8px 18px;
+  display: block;
+  overflow: visible;
+}
+
+/* Day row */
+.pep-day-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.pep-day-row-content {
+  display: flex;
+  gap: 12px;
+  align-items: start;
+}
+.pep-day-label {
+  width: 70px;
+  color: #8E2626;
+  font-weight: 700;
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+
+/* Disabled message for locked days */
+.pep-disabled-message {
+  margin-left: 82px;
+  color: #8E2626;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 12px;
+  background: rgba(232, 50, 50, 0.08);
+  border-radius: 6px;
+  border-left: 3px solid #8E2626;
+  display: flex;
+  align-items: center;
+}
+.pep-lock-icon {
+  margin-right: 6px;
+  font-size: 14px;
+}
+
+/* Warning message for incomplete prerequisite days */
+.pep-warning-message {
+  margin-left: 82px;
+  color: #d97706;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 12px;
+  background: rgba(217, 119, 6, 0.08);
+  border-radius: 6px;
+  border-left: 3px solid #d97706;
+  display: flex;
+  align-items: center;
+  margin-top: 4px;
+}
+.pep-warning-icon {
+  margin-right: 6px;
+  font-size: 14px;
+}
+
+/* Make the fields layout flexible and shrinkable.
+   Use minmax for the second (big) column to allow shrinking.
+   Inputs must be allowed to shrink (min-width:0). */
+.pep-row-fields {
+  display: grid;
+  grid-template-columns: 120px minmax(120px, 1fr) 90px 120px 140px;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0; /* <-- important to allow the grid to shrink */
+}
+.pep-input {
+  border: 1px solid #e6bdbd;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fff;
+  color: #333;
+  font-size: 13px;
+  box-sizing: border-box;
+  min-width: 0; /* <-- important so inputs can shrink inside grid cells */
+  text-transform: uppercase;
+}
+
+/* Disabled inputs styling */
+.pep-input.disabled,
+.pep-input:disabled {
+  background: #faf7f7;
+  border-color: #efecec;
+  color: #b9b9b9;
+  cursor: not-allowed;
+}
+
+/* smaller date input */
+.pep-row-fields .date-input {
+  padding: 6px 8px;
+}
+
+
+.pep-clear-all {
+  border: 1px solid #8E2626;
+  background: transparent;
+  color: #8E2626;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.pep-clear-all:hover:not(:disabled) {
+  background: #fff3f3;
+  border-color: #6d1d1d;
+  color: #6d1d1d;
+}
+.pep-clear-all:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* toggle row */
+.pep-toggle-row {
+  margin-top: 8px;
+  margin-bottom: 16px;
+  padding-left: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.pep-toggle-switch-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pep-toggle-switch {
+  position: relative;
+  width: 50px;
+  height: 28px;
+  background-color: rgba(142, 38, 38, 0.45);
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  padding: 0;
+  transition: background-color 0.3s ease;
+  flex-shrink: 0;
+}
+
+.pep-toggle-switch.active {
+  background-color: rgba(142, 38, 38, 1);
+}
+
+.pep-toggle-switch:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.pep-toggle-slider {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 24px;
+  height: 24px;
+  background-color: white;
+  border-radius: 50%;
+  transition: left 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.pep-toggle-switch.active .pep-toggle-slider {
+  left: calc(100% - 26px);
+}
+
+.pep-toggle-label {
+  font-size: 14px;
+  color: #333;
+  font-weight: 500;
+  user-select: none;
+}
+
+/* day checkbox row */
+.pep-day-checkbox-row {
+  margin-top: 12px;
+  padding-left: 4px;
+  padding-bottom: 8px;
+}
+
+.pep-day-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #333;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+}
+
+.pep-day-checkbox-label input[type="checkbox"] {
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+  accent-color: #8E2626;
+}
+
+.pep-day-checkbox-label input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* disabled / faded inputs */
+.pep-row-fields input:disabled {
+  background: #faf7f7;
+  border-color: #efecec;
+  color: #b9b9b9;
+}
+
+/* summary / QR page */
+.pep-qr-page {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  padding: 10px 6px;
+  box-sizing: border-box;
+}
+.pep-qr-left {
+  flex: 1;
+  padding-left: 6px;
+}
+.pep-qr-right {
+  width: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pep-qr-instructions {
+  color: #8E2626;
+  line-height: 1.4;
+  font-size: 22px;
+  font-weight: 800;
+}
+.pep-next-dose-info {
+  margin-top: 20px;
+  padding: 15px;
+  background: rgba(142, 38, 38, 0.05);
+  border-radius: 8px;
+  border-left: 4px solid #8E2626;
+}
+.pep-next-dose-info h4 {
+  margin: 0 0 10px 0;
+  color: #8E2626;
+  font-size: 16px;
+  font-weight: 700;
+}
+.pep-dose-details {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.pep-dose-details strong {
+  color: #8E2626;
+  font-size: 14px;
+}
+.pep-dose-details span {
+  color: #333;
+  font-size: 14px;
+}
+.pep-qr-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pep-qr-image {
+  width: 300px;
+  height: 300px;
+  border: 6px solid #8E2626;
+  border-radius: 6px;
+}
+.pep-qr-placeholder {
+  width: 300px;
+  height: 300px;
+  border: 6px solid #8E2626;
+  border-radius: 6px;
+  background: repeating-linear-gradient(45deg, #fff 0, #fff 12px, #f7f7f7 12px, #f7f7f7 24px);
+}
+
+/* footer: progress and actions */
+.pep-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  border-top: 1px solid #eee;
+  background: #fff;
+}
+.pep-progress {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.pep-dot {
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  border: 2px solid #e6bdbd;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.pep-dot.active {
+  background: #8E2626;
+  border-color: #8E2626;
+}
+
+/* footer action buttons */
+.pep-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;     
+  height: 36px;           
+  min-width: 64px;     
+  box-sizing: border-box;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  line-height: 1;
+  gap: 6px;
+}
+
+.action-btn--small {
+  padding: 6px 10px;
+  height: 32px;
+  min-width: 56px;
+  font-size: 12px;
+  border-radius: 7px;
+}
+
+/* Cancel is lighter */
+.pep-cancel,
+.pep-back {
+  background: transparent;
+  color: #8E2626;
+  border: 1px solid #8E2626;
+}
+
+/* Next / Finish */
+.pep-next {
+  background-color: #8E2626;
+  color: #fff;
+  border: none;
+}
+
+.pep-cancel, .pep-back, .pep-next {
+  box-shadow: none;
+}
+
+.pep-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+/* Warning Overlay Styles */
+.pep-warning-overlay {
+  position: fixed;
+  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 11002; /* Above the main modal */
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.pep-warning-box {
+  background: white;
+  border-radius: 12px;
+  padding: 30px;
+  max-width: 450px;
+  width: 90%;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  text-align: center;
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.pep-warning-icon {
+  font-size: 48px;
+  margin-bottom: 15px;
+}
+
+.pep-warning-title {
+  color: #8E2626;
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0 0 15px 0;
+  letter-spacing: -0.5px;
+}
+
+.pep-warning-text {
+  color: #333;
+  font-size: 15px;
+  line-height: 1.5;
+  margin: 0 0 25px 0;
+}
+
+.pep-warning-btn {
+  background: #8E2626;
+  color: white;
+  border: none;
+  padding: 12px 40px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  min-width: 120px;
+}
+
+.pep-warning-btn:hover {
+  background: #6d1d1d;
+}
+
+.pep-warning-btn:active {
+  transform: scale(0.98);
+}
+
+/* Responsive: on narrower screens we will stack the label and make inputs wrap into multiple rows.
+   This prevents the row from forcing a horizontal scrollbar. */
+@media (max-width: 980px) {
+  .pep-day-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .pep-day-label {
+    width: auto;
+    margin-bottom: 8px;
+    margin-top: 0;
+  }
+  /* make fields form 2 columns when stacked */
+  .pep-row-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .pep-qr-right { width: 220px; }
+  .pep-qr-placeholder { width: 180px; height: 180px; border-width: 4px; }
+}
+
+/* Very small screens: single column fields */
+@media (max-width: 520px) {
+  .pep-row-fields {
+    grid-template-columns: 1fr;
+  }
+  .pep-modal {
+    width: 100%;
+    max-width: calc(100% - 20px);
+    max-height: calc(100vh - 30px);
+  }
+}

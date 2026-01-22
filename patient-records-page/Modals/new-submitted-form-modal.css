@@ -1,0 +1,1452 @@
+/* Bleeding row and box styling for better alignment */
+.bleed-row {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 16px;
+}
+.bleed-box {
+  background: #fff;
+  border-radius: 10px;
+  min-width: 140px;
+  min-height: 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+  padding: 12px 18px;
+}
+.bleed-label {
+  font-weight: 700;
+  font-size: 0.97rem;
+  margin-bottom: 6px;
+  text-align: center;
+  color: #fff;
+  white-space: nowrap;
+}
+.bleed-value {
+  font-size: 1.1rem;
+  font-weight: 600;
+  text-align: center;
+  color: #8E2626;
+}
+:root{
+  --grid-cols-large: 1fr 1.2fr 1fr; 
+  /* gaps */
+  --grid-row-gap: 16px;   /* vertical spacing between rows */
+  --grid-column-gap: 10px;/* horizontal spacing between columns */
+  /* container padding */
+  --container-padding-vertical: 38px;
+  --container-padding-horizontal: 34px;
+  --field-gap: 7px;
+  --input-padding-vertical: 8px;
+  --input-padding-horizontal: 12px;
+  /* colors */
+  --maroon: #8E2626;
+  --maroon-dark: #7f1f1f;
+}
+
+/* Reset and base styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Poppins", Arial, Helvetica, sans-serif;
+}
+
+/* Overlay styling */
+.patient-overlay {
+  position: fixed;
+  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(15, 15, 15, 0.55);
+  display: flex;
+  /* move from center to top so long modals can scroll */
+  align-items: flex-start;
+  justify-content: center;
+  /* provide top spacing so modal does not stick to very top */
+  padding-top: 40px;
+  z-index: 11001; /* Above navbar (50) and logout overlay (10000) */
+  /* allow overlay to show page behind slightly when scrolling modal */
+  overflow-y: auto;
+  pointer-events: auto;
+}
+
+/* Container */
+.patient-container {
+  width: 100%;
+  max-width: 900px;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 6px 36px #0002;
+  padding: var(--container-padding-vertical) var(--container-padding-horizontal);
+  position: relative;
+
+  /* make container vertically scrollable when content is tall */
+  max-height: calc(100vh - 80px); /* keep some breathing room top/bottom */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch; /* smoother scrolling on iOS */
+
+  /* ensure inner content has some space at the bottom when scrolled */
+  padding-bottom: calc(var(--container-padding-vertical) + 8px);
+}
+
+/* Header layout */
+.patient-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.patient-header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Header action icons (edit/print/download/Rx) */
+.patient-actions {
+  position: static;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Close (X) button in header */
+.patient-header .patient-close {
+  position: static;
+  background: transparent;
+  border: none;
+  padding: 6px;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.patient-close img {
+  display: block;
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
+/* make the header buttons visually small and remove default chrome */
+.patient-actions button {
+  background: transparent;
+  border: none;
+  padding: 6px;            /* clickable area */
+  width: 36px;            /* control size of the square button */
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 6px;     
+  line-height: 0;
+  transition: background-color 0.12s, transform 0.08s;
+}
+
+/* Ensure Rx text button matches icon style */
+.patient-btn-action {
+  color: var(--maroon);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* small hover/focus affordance */
+.patient-actions button:hover,
+.patient-actions button:focus {
+  background: rgba(0,0,0,0.04);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+/* size the image/SVG inside the button */
+.patient-actions button img {
+  display: block;       
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  pointer-events: none;
+  /* approximate the app's maroon (#8E2626) for the icons */
+  filter: brightness(0) saturate(100%) invert(15%) sepia(40%) saturate(1800%) hue-rotate(345deg) brightness(92%) contrast(96%);
+}
+
+/* Title */
+.patient-title {
+  font-size: 32px;
+  margin: 4px 0 12px;
+  color: var(--maroon);
+  text-align: left;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+/* BASIC INFORMATION */
+.patient-section-info {
+  background: #fdf7f7;
+  border-radius: 14px;
+  padding: 20px 18px;
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(142, 38, 38, 0.15);
+}
+.patient-section-title-info {
+  color: var(--maroon);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  margin-bottom: 10px;
+  margin-left: 1px;
+}
+
+/* Information grid (default 3 col) */
+.patient-info-grid {
+  display: grid;
+  grid-template-columns: var(--grid-cols-large);
+  gap: var(--grid-row-gap) var(--grid-column-gap); 
+  margin: 0;
+}
+
+/* Utility classes to quickly test spacing */
+.patient-info-grid.tight { 
+  --grid-row-gap: 8px;
+  --grid-column-gap: 10px;
+}
+.patient-info-grid.spacious {
+  --grid-row-gap: 24px;
+  --grid-column-gap: 28px;
+}
+
+/* Extra breathing room for PERTINENT PAST MEDICAL HISTORY row */
+.patient-section-card .patient-info-grid.past-med-grid {
+  column-gap: 32px;
+}
+
+/* Allow specific fields to span two columns */
+.patient-info-grid .span-2 {
+  grid-column: span 2;
+}
+
+/* Display fields (inputs) */
+.patient-display-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--field-gap);
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Label default: subtle, caption-like to separate from values */
+label.patient-display-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(142, 38, 38, 0.7);
+  font-weight: 600;
+  margin-bottom: 2px;
+  padding-left: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Card labels override keep the same softer tone */
+.patient-section-card .patient-display-label {
+  color: rgba(142, 38, 38, 0.7);
+}
+
+/* Input field styling (default: white inputs with maroon text) */
+/* This class is used both for real inputs and for display-only elements */
+.patient-display-input {
+  border: none;
+  background: #fff;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #6b1b1b;
+  padding: 8px 12px;
+  outline: none;
+  width: 100%;
+  resize: none;
+  height: auto;
+  line-height: 1.3;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+/* make display-only text wrap */
+.patient-display-input p {
+  margin: 0;
+  line-height: 1.2;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Card inputs (lighter surface, maroon accents) - scoped to card only */
+.patient-section-card .patient-display-input {
+  background: #ffffff;
+  color: #5b1717;
+  font-weight: 700;
+  border-radius: 10px;
+  padding: 10px 14px;
+  border: 1px solid rgba(142, 38, 38, 0.18);
+  box-shadow: none;
+  height: 40px;
+  line-height: 1.2;
+}
+
+.patient-section-card .patient-info-grid > .col-span-2,
+.patient-section-card .patient-info-grid > .col-span-4 {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;           
+  align-items: flex-start;
+}
+
+.patient-section-card .patient-info-grid > * {
+  min-width: 0;             
+}
+
+/* Keep small boxes compact but wider (re-uses existing .small-boxes-row) */
+.patient-section-card .small-boxes-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.patient-section-card .past-med-left {
+  grid-column: 1 / 3;            
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.patient-section-card .past-med-left .small {
+  flex: 0 1 auto;            
+  max-width: 100%;           
+  width: auto;
+  box-sizing: border-box;
+}
+
+.patient-section-card .past-med-left .small .patient-display-input {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.patient-section-card .past-med-right  {    
+  grid-column: 3 / 7 !important;        
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+  justify-self: stretch; 
+  margin-left: 18px;      
+}
+
+.patient-section-card .past-med-right .patient-display-input.allergies {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  height: 40px;
+  min-height: 40px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* tighten vertical spacing for this specific area (optional tweak) */
+.patient-section-card .patient-info-grid .past-med-compact {
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+
+/* New stacked layout for PERTINENT PAST MEDICAL HISTORY */
+.past-med-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.past-med-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.past-med-row .small-boxes-row {
+  margin-top: 0;
+}
+
+.past-med-row .patient-display-input.allergies {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Display-only variant inside cards — subtle tinted background */
+.patient-section-card .patient-display-input.display-only{
+  background: #fdf7f7;
+  color: var(--maroon);
+  padding: 10px 14px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+}
+
+/* a label-only row in a card */
+.patient-section-card .label-only-row {
+  grid-column: 1 / -1;
+}
+.patient-section-card .label-only-row .patient-display-label {
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: var(--maroon);
+}
+
+/* Ensure textarea inputs are targeted consistently */
+.patient-display-input:focus,
+textarea.patient-display-input:focus,
+.patient-display-field textarea:focus {
+  outline: 2px solid rgba(198,137,137,0.4);
+  outline-offset: 1px;
+}
+
+/* Small container utility: ensure the input fills the small wrapper */
+.patient-info-grid .small,
+.patient-section-card .small {
+  max-width: 260px;   /* increase this to make boxes wider */
+  width: 100%;
+  flex: 0 1 220px;    /* flex: [grow] [shrink] [basis] -> basis ~ preferred width */
+}
+.patient-info-grid .small .patient-display-input,
+.patient-section-card .small .patient-display-input {
+  width: 100%;
+}
+
+/* make display-only text empty behaviour consistent */
+.patient-display-input.display-only p.empty {
+  display: block;
+  width: 100%;
+  height: 0;
+  overflow: hidden;
+}
+
+/* Responsive Design */
+/* Medium screens: 2 columns */
+@media (max-width: 960px) {
+  .patient-container { padding: 18px 7vw;}
+  .patient-info-grid { grid-template-columns: repeat(2, 1fr); }
+
+  /* In two-column layout: make span-2 occupy full row */
+  .patient-info-grid .span-2 {
+    grid-column: 1 / -1;
+  }
+
+  /* For card sections keep card inputs full-width if span-2 applied */
+  .patient-section-card .span-2 {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Small screens: 1 column */
+@media (max-width: 700px) {
+  .patient-container { max-width: 95vw; padding: 8px 2vw;}
+  .patient-info-grid { grid-template-columns: 1fr; }
+
+  /* on single-column layout, don't span multiple columns */
+  .patient-info-grid .span-2 {
+    grid-column: 1 / -1;
+  }
+}
+
+/* PERTINENT DATA card */
+.patient-section-card {
+  background: transparent;
+  border: 1px solid var(--maroon);
+  border-radius: 10px;
+  padding: 18px 16px;
+  margin-top: 18px;
+  margin-bottom: 8px;
+}
+
+/* Title inside these cards */
+.patient-section-title-card {
+  color: var(--maroon);
+  font-size: 1.05rem;
+  font-weight: 800;
+  margin: 0 0 12px 2px;
+  letter-spacing: 0.6px;
+}
+
+.patient-section-card .patient-info-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 18px 18px;
+  align-items: start;
+  margin-bottom: 6px;
+}
+
+/* Utilities to span columns for the 6-column layout */
+.patient-section-card .col-span-1 { grid-column: span 1; }
+.patient-section-card .col-span-2 { grid-column: span 2; }
+.patient-section-card .col-span-3 { grid-column: span 3; }
+.patient-section-card .col-span-4 { grid-column: span 4; }
+.patient-section-card .col-span-5 { grid-column: span 5; }
+.patient-section-card .col-span-6 { grid-column: 1 / -1; }
+.patient-section-card .full { grid-column: 1 / -1; }
+
+/* Keep span-2 behavior for these cards as well (scoped) */
+.patient-section-card .span-2 {
+  grid-column: span 2;
+}
+
+/* Compact wrapper to keep label and small boxes close */
+.patient-section-card .label-row-wrapper {
+  grid-column: 1 / -1;              
+  display: flex;
+  flex-direction: column;
+  gap: 6px;                         /* small gap between label and boxes */
+  align-items: flex-start;
+  margin-top: 4px;
+  margin-bottom: 2px;
+}
+
+.patient-section-card .label-row-wrapper .patient-display-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--maroon);
+  margin: 0;
+  padding-left: 0;
+}
+
+/* container holding exactly two small boxes directly under the label */
+.patient-section-card .small-boxes-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: flex-start; 
+  width: auto;
+}
+
+/* reduce the default min-height so small boxes sit compactly under label */
+.patient-section-card .small .patient-display-input {
+  min-height: 36px;
+  height: 36px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-weight: 700;
+  min-width: 120px;  
+  max-width: 420px;   
+  box-sizing: border-box;
+  width: 100%;
+}
+
+/* -------------------
+   PHYSICAL SECTION
+   (maroon background, white labels, white input boxes with maroon text)
+   Scoped to .physical-section so it does not affect other sections
+   ------------------- */
+
+/* Physical section container */
+.physical-section {
+  background: #fdf7f7; /* soft surface with maroon accent */
+  border-radius: 10px;
+  padding: 18px;
+  margin-top: 18px;
+  color: #222;
+  border: 1px solid rgba(142, 38, 38, 0.18);
+}
+
+/* Prescription summary section visually separated from physical findings */
+.prescription-summary-section {
+  background: #fdf7f7;
+  border-radius: 10px;
+  padding: 18px;
+  margin-top: 18px;
+  border: 1px solid rgba(142, 38, 38, 0.18);
+}
+
+.prescription-summary-section .patient-section-title-card {
+  margin-bottom: 10px;
+}
+
+/* Ensure the grid used in the section stays the same */
+.physical-section .physical-grid {
+  background: transparent;
+  gap: 12px 18px;
+}
+
+/* Labels inside physical section use maroon text */
+.physical-section label.patient-display-label {
+  color: rgba(142, 38, 38, 0.7);
+  font-weight: 700;
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+
+/* Inputs inside physical section: white boxes with maroon text by default */
+.physical-section .patient-display-input {
+  background: #fff;             /* white input box */
+  color: #5b1717;               /* darker text inside input */
+  border-radius: 8px;
+  border: none;
+  padding: 8px 10px;
+  height: 36px;
+  font-weight: 700;
+  box-shadow: none;
+}
+
+/* Textareas in this section: white background, larger min-height */
+.physical-section textarea.patient-display-input {
+  background: #fff;
+  color: var(--maroon);
+  min-height: 120px;
+  padding: 10px 12px;
+  resize: vertical;
+}
+
+/* Small helpers (keep narrow boxes working) */
+.physical-section .small {
+  max-width: 140px;
+  width: 100%;
+}
+.physical-section .small .patient-display-input {
+  width: 100%;
+}
+
+/* Focus outline tuned to be visible on white inputs */
+.physical-section .patient-display-input:focus,
+.physical-section textarea.patient-display-input:focus {
+  outline: 2px solid rgba(142,38,38,0.18);
+  outline-offset: 1px;
+}
+
+/* Ensure grid children align to the top */
+.physical-grid > * {
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.physical-grid .category-exposure {
+  /* columns 1 - 4 inclusive (span 4) */
+  grid-column: 1 / 5;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.physical-grid .assessment {
+  /* columns 5 - 12 inclusive (span 8) */
+  grid-column: 5 / 13;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Plan sits below category (same left columns) */
+.physical-grid .plan {
+  grid-column: 1 / 5;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Ensure inner display boxes fill their grid cell */
+.physical-grid .patient-display-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* bp-group / bp-row styles */
+.bp-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+.bp-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+  width: 100%;
+}
+.bp-item {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.bp-item .patient-display-input {
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+}
+.bp-helper {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #555;
+  text-align: center;
+  line-height: 1;
+  opacity: 0.95;
+}
+
+/* convenience small input width if needed (same as weight) */
+.physical-grid .small-input {
+  max-width: none;   
+  width: 100%;
+  flex: 0 1 auto;     
+  box-sizing: border-box;
+}
+
+/* explicit placement helper classes (place at column X and span Y) */
+.physical-grid .place-c3-s4 { grid-column: 3 / span 4; }  /* columns 3-6 */
+.physical-grid .place-c7-s2 { grid-column: 7 / span 2; }  /* columns 7-8 */
+.physical-grid .place-c11-s2 { grid-column: 11 / span 2; }/* columns 11-12 */
+
+/* 12-column grid utilities for the physical section (full set) */
+.physical-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 12px 18px;
+  align-items: start;
+}
+.physical-grid .col-span-1  { grid-column: span 1; }
+.physical-grid .col-span-2  { grid-column: span 2; }
+.physical-grid .col-span-3  { grid-column: span 3; }
+.physical-grid .col-span-4  { grid-column: span 4; }
+.physical-grid .col-span-5  { grid-column: span 5; }
+.physical-grid .col-span-6  { grid-column: span 6; }
+.physical-grid .col-span-7  { grid-column: span 7; }
+.physical-grid .col-span-8  { grid-column: span 8; }
+.physical-grid .col-span-9  { grid-column: span 9; }
+.physical-grid .col-span-10 { grid-column: span 10; }
+.physical-grid .col-span-11 { grid-column: span 11; }
+.physical-grid .col-span-12 { grid-column: 1 / -1; }
+.physical-grid .full       { grid-column: 1 / -1; }
+
+/* Adjust physical input appearance (textarea, heights) */
+.physical-grid .patient-display-input {
+  height: 36px;
+  padding: 8px 10px;
+  font-weight: 700;
+  align-items: center;
+}
+.physical-grid textarea.patient-display-input {
+  min-height: 120px;
+  resize: vertical;
+  padding: 10px 12px;
+}
+
+/* Responsive adjustments for physical-grid */
+@media (max-width: 1200px) {
+  .physical-grid { grid-template-columns: repeat(8, 1fr); }
+}
+@media (max-width: 960px) {
+  .physical-grid { grid-template-columns: repeat(6, 1fr); }
+}
+@media (max-width: 700px) {
+  .physical-grid { grid-template-columns: 1fr; }
+  .physical-grid .col-span-1,
+  .physical-grid .col-span-2,
+  .physical-grid .col-span-3,
+  .physical-grid .col-span-4,
+  .physical-grid .col-span-5,
+  .physical-grid .col-span-6,
+  .physical-grid .col-span-7,
+  .physical-grid .col-span-8,
+  .physical-grid .col-span-9,
+  .physical-grid .col-span-10,
+  .physical-grid .col-span-11,
+  .physical-grid .col-span-12,
+  .physical-grid .full { grid-column: 1 / -1; }
+}
+
+/* final small helpers (if you want a subtle inset on card inputs) */
+.patient-section-card .patient-display-input {
+  box-shadow: none;
+}
+
+.visual-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.visual-notes-section {
+  border: 1px solid #8E2626; /* requested border color */
+  padding: 12px;
+  border-radius: 6px;
+  margin-top: 18px;
+  background: transparent;
+}
+
+/* Title spacing */
+.visual-notes-section .visual-title {
+  margin-bottom: 10px;
+}
+
+/* Grid for visual slots */
+.visual-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+/* Individual slot */
+.visual-slot {
+  height: 96px;
+  border-radius: 6px;
+  background: #fff;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  outline: none;
+}
+
+/* Empty slot visual (blank, non-interactive) */
+.visual-slot-empty {
+  background: #fff;
+  border: 1px dashed rgba(142, 38, 38, 0.25);
+}
+
+/* Filled slot */
+.visual-slot-filled {
+  border: 1px solid rgba(0,0,0,0.06);
+}
+
+/* Blank inner when no image (keeps it visually minimal) */
+.visual-slot-blank {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+}
+
+/* Image styling */
+.visual-slot-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.visual-slot-filled img.visual-slot-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 6px;
+}
+.visual-slot-placeholder {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.visual-slot-plus {
+  font-size: 18px;
+  color: var(--maroon);
+}
+
+/* Footer visual actions */
+.visual-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 18px;
+  gap: 12px;
+}
+.submission-id {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.submission-label {
+  font-size: 11px;
+  color: var(--maroon);
+  font-weight: 700;
+}
+.submission-input {
+  background: #ffffff;
+  color: var(--maroon);
+  padding: 6px 14px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  max-width: 260px;
+  margin-top: 0;
+  border: 1px solid var(--maroon);
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+/* Buttons */
+.visual-footer-actions {
+  display: flex;
+  gap: 8px;
+}
+.btn {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-weight: 700;
+}
+.btn-terminate { background: #000; color: #fff; font-size: 12px;}
+.btn-back { background: var(--maroon); color: #fff; }
+.btn-verify { 
+  background: #fff; 
+  color: var(--maroon); 
+  border-color: var(--maroon); 
+  border: 1px solid var(--maroon);
+}
+
+/* Custom red scrollbar for patient details modal */
+.patient-container {
+  scrollbar-width: auto;                /* Firefox */
+  scrollbar-color: #8E2626 transparent; /* red thumb, transparent track */
+}
+
+.patient-container::-webkit-scrollbar {
+  width: 10px;
+}
+
+.patient-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.patient-container::-webkit-scrollbar-thumb {
+  background-color: #8E2626; /* brand red */
+  border-radius: 8px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+/* Termination reason card (used only in terminated view) */
+.termination-reason-card {
+  background: #fdf7f7;
+  border: 1px solid var(--maroon);
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-top: 18px;
+}
+
+.termination-reason-card .patient-section-title-card {
+  color: var(--maroon);
+}
+
+.termination-reason-body {
+  background: #ffffff;
+  border: 1px solid #f0d8d8;
+  border-radius: 10px;
+  padding: 12px 14px;
+  color: #5a1b1b;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+/* Button styling for PDF/Print action buttons */
+.patient-btn-action {
+  background: transparent;
+  border: 1px solid #e0e0e0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 18px;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+}
+
+.patient-btn-action:hover {
+  background: rgba(142, 38, 38, 0.1);
+  border-color: #8e2626;
+  transform: translateY(-1px);
+}
+
+.patient-btn-action:active {
+  transform: translateY(0);
+}
+
+/* Printable content container */
+.patient-content-printable {
+  width: 100%;
+}
+
+/* Default visibility: show interactive layout, hide print-form clone */
+.patient-form-screen {
+  width: 100%;
+}
+
+.abtc-print-only {
+  display: none;
+}
+
+/* Print media styles */
+@media print {
+  /* Hide overlay and background when printing */
+  .patient-overlay {
+    background: transparent;
+    padding: 0;
+  }
+
+  .patient-container {
+    max-height: none;
+    max-width: none;
+    box-shadow: none;
+    border-radius: 0;
+    padding: 0;
+    margin: 0;
+    overflow: visible;
+  }
+
+  .patient-header {
+    display: none;
+  }
+
+  .patient-actions {
+    display: none;
+  }
+
+  .visual-footer {
+    display: none;
+  }
+
+  /* Professional print layout */
+  body {
+    margin: 0;
+    padding: 20px;
+    background: white;
+    font-family: "Poppins", Arial, sans-serif;
+    line-height: 1.6;
+    color: #333;
+  }
+
+  .patient-content-printable {
+    width: 100%;
+    max-width: 8.5in;
+    margin: 0 auto;
+    background: white;
+  }
+
+  /* Section styling for print */
+  .patient-section-info,
+  .patient-section-card,
+  .physical-section,
+  .prescription-summary-section,
+  .visual-notes-section,
+  .termination-reason-card {
+    page-break-inside: avoid;
+    margin-bottom: 25px;
+    background: white;
+    padding: 0;
+  }
+
+  .patient-section-title-card,
+  .patient-section-title-info {
+    font-size: 13px;
+    font-weight: 800;
+    margin: 0 0 15px 0;
+    padding: 10px 12px;
+    background: #f5f5f5;
+    border-left: 4px solid #8e2626;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #333;
+  }
+
+  /* Grid styling for print */
+  .patient-info-grid,
+  .physical-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 15px;
+    margin-bottom: 0;
+  }
+
+  /* Individual field styling */
+  .patient-display-field {
+    display: flex;
+    flex-direction: column;
+    page-break-inside: avoid;
+  }
+
+  .patient-display-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: #666;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .patient-display-input {
+    font-size: 11px;
+    border: 1px solid #ddd;
+    padding: 8px 10px;
+    background: #fafafa;
+    border-radius: 3px;
+    min-height: 28px;
+    display: flex;
+    align-items: center;
+  }
+
+  .patient-display-input p {
+    margin: 0;
+    word-break: break-word;
+  }
+
+  .patient-display-input.display-only {
+    background: #f9f9f9;
+  }
+
+  .patient-display-input.empty {
+    background: #efefef;
+    color: #999;
+  }
+
+  /* Multi-line inputs */
+  .patient-display-input.multiline {
+    min-height: 60px;
+    align-items: flex-start;
+    padding: 8px;
+  }
+
+  /* Special grid items */
+  .col-span-2 {
+    grid-column: span 2;
+  }
+
+  .col-span-3 {
+    grid-column: span 2;
+  }
+
+  .col-span-4 {
+    grid-column: span 2;
+  }
+
+  .col-span-6 {
+    grid-column: span 2;
+  }
+
+  .col-span-8 {
+    grid-column: span 2;
+  }
+
+  .col-span-12 {
+    grid-column: span 2;
+  }
+
+  /* Blood pressure styling */
+  .bp-group {
+    grid-column: span 2;
+  }
+
+  .bp-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 5px;
+  }
+
+  .bp-item {
+    flex: 1;
+  }
+
+  .bp-item .patient-display-input {
+    min-height: 28px;
+    font-size: 11px;
+  }
+
+  .bp-helper {
+    font-size: 9px;
+    color: #999;
+    margin-top: 2px;
+  }
+
+  /* Visual notes section */
+  .visual-notes-section {
+    page-break-inside: avoid;
+    border-top: 2px solid #8e2626;
+    padding-top: 15px;
+    margin-top: 25px;
+  }
+
+  .visual-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .visual-slot {
+    aspect-ratio: 1;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #f9f9f9;
+    page-break-inside: avoid;
+  }
+
+  .visual-slot-filled img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .visual-slot-empty {
+    display: none;
+  }
+
+  /* Termination reason styling */
+  .termination-reason-card {
+    background: #fff3f3;
+    border: 2px solid #8e2626;
+    border-radius: 4px;
+    padding: 12px;
+    margin-top: 20px;
+  }
+
+  .termination-reason-body {
+    background: white;
+    border: 1px solid #ddd;
+    padding: 10px;
+    color: #333;
+    font-size: 11px;
+    line-height: 1.5;
+    border-radius: 3px;
+  }
+
+  /* Special wrapper styling */
+  .label-row-wrapper {
+    grid-column: span 2;
+  }
+
+  .small-boxes-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 6px;
+  }
+
+  .small {
+    flex: 1;
+  }
+
+  .small .patient-display-input {
+    font-size: 10px;
+    min-height: 24px;
+  }
+
+  /* Category and assessment boxes */
+  .category-exposure,
+  .assessment,
+  .plan {
+    grid-column: span 2;
+  }
+
+  .assessment .patient-display-input,
+  .plan .patient-display-input {
+    min-height: 50px;
+  }
+
+  /* Page break handling */
+  @page {
+    margin: 20px;
+    size: A4;
+  }
+
+  /* Ensure content is printer-friendly */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide any interactive elements */
+  button, input, select, textarea {
+    display: none;
+  }
+
+  /* Show print-clone form and hide interactive layout when printing */
+  .patient-form-screen {
+    display: none;
+  }
+
+  .abtc-print-only {
+    display: block;
+  }
+
+  /* ABTC official form styling */
+  .abtc-form {
+    font-family: "Poppins", Arial, sans-serif;
+    font-size: 11px;
+    color: #000;
+    border: 1px solid #000;
+    padding: 10px 12px;
+    box-sizing: border-box;
+  }
+
+  .abtc-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 6px;
+  }
+
+  .abtc-header-left {
+    font-size: 10px;
+    line-height: 1.3;
+  }
+
+  .abtc-header-office {
+    font-weight: 700;
+    margin-top: 2px;
+  }
+
+  .abtc-header-right {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .abtc-logo-box {
+    width: 60px;
+    height: 60px;
+    border: 1px solid #000;
+  }
+
+  .abtc-title {
+    text-align: center;
+    font-size: 12px;
+    font-weight: 700;
+    margin: 4px 0 8px 0;
+    text-transform: uppercase;
+  }
+
+  .abtc-section {
+    border-top: 1px solid #000;
+    padding-top: 6px;
+    margin-top: 4px;
+    page-break-inside: avoid;
+  }
+
+  .abtc-section-title {
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+    font-size: 10px;
+  }
+
+  .abtc-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 3px;
+  }
+
+  .abtc-row-multiline {
+    align-items: flex-start;
+  }
+
+  .abtc-label {
+    font-weight: 600;
+    margin-right: 4px;
+    white-space: nowrap;
+  }
+
+  .abtc-line {
+    border-bottom: 1px solid #000;
+    min-height: 14px;
+    padding: 0 2px;
+    margin-right: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    flex-shrink: 1;
+  }
+
+  .abtc-line-wide {
+    flex: 1 1 auto;
+  }
+
+  .abtc-line-small {
+    min-width: 70px;
+  }
+
+  .abtc-line-textarea {
+    min-height: 30px;
+    width: 100%;
+  }
+
+  .abtc-box {
+    display: inline-flex;
+    align-items: center;
+    margin-right: 6px;
+    font-size: 10px;
+  }
+
+  .abtc-box-inner {
+    width: 9px;
+    height: 9px;
+    border: 1px solid #000;
+    margin-right: 2px;
+    box-sizing: border-box;
+  }
+
+  .abtc-box.checked .abtc-box-inner {
+    background: #000;
+  }
+
+  .abtc-row-signature {
+    margin-top: 10px;
+  }
+
+  .abtc-signature-block {
+    margin-left: auto;
+    text-align: center;
+  }
+
+  .abtc-signature-line {
+    border-bottom: 1px solid #000;
+    width: 180px;
+    margin: 0 auto 3px auto;
+    height: 16px;
+  }
+
+  .abtc-signature-label {
+    font-size: 9px;
+  }
+
+  .abtc-signature-name {
+    font-size: 10px;
+    font-weight: 600;
+  }
+}

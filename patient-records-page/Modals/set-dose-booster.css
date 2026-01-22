@@ -1,0 +1,390 @@
+/* Overlay base */
+.booster-overlay {
+  position: fixed;
+  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 15, 15, 0.55);
+  z-index: 11001; /* Above navbar (50) and logout overlay (10000) */
+  padding: 20px;
+  box-sizing: border-box;
+  pointer-events: auto;
+}
+
+/* Ensure predictable box-sizing inside modal */
+.booster-modal, .booster-modal * {
+  box-sizing: border-box;
+}
+
+.booster-modal {
+  width: 760px;
+  max-width: calc(100% - 48px);
+  background: #fff;
+  border-radius: 12px;
+  /* allow internal scroll instead of cutting off modal content */
+  max-height: calc(100vh - 60px);
+  overflow: auto;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header */
+.booster-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: linear-gradient(90deg, rgba(232,50,50,0.03), rgba(232,50,50,0.01));
+  border-bottom: 2px solid rgba(142,38,38,0.06);
+}
+.booster-title {
+  color: #8E2626;
+  font-size: 18px;
+  font-weight: 800;
+}
+.booster-close {
+  background: transparent;
+  border: none;
+  font-size: 22px;
+  cursor: pointer;
+  color: #8E2626;
+}
+
+/* patient row */
+.booster-patient-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  gap: 12px;
+}
+.booster-patient-name {
+  font-weight: 700;
+  color: #8E2626;
+}
+.booster-date-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.booster-date-field input.date-input {
+  border: 1px solid #e2bebe;
+  padding: 6px;
+  border-radius: 6px;
+}
+.booster-today-btn {
+  background-color: #8E2626;
+  color: #fff;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  white-space: nowrap;
+}
+.booster-today-btn:hover {
+  background-color: #a82e2e;
+}
+.booster-today-btn:active {
+  background-color: #742020;
+}
+
+/* main content container */
+.booster-content {
+  padding: 12px 16px 8px 16px;
+  display: block;
+  overflow: visible;
+}
+
+/* Day row */
+.booster-day-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.booster-day-row-content {
+  display: flex;
+  gap: 12px;
+  align-items: start;
+}
+
+.booster-day-label {
+  width: 70px;
+  color: #8E2626;
+  font-weight: 700;
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+
+/* Disabled message for locked days */
+.booster-disabled-message {
+  margin-left: 82px;
+  color: #8E2626;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 12px;
+  background: rgba(232, 50, 50, 0.08);
+  border-radius: 6px;
+  border-left: 3px solid #8E2626;
+  display: flex;
+  align-items: center;
+}
+.booster-lock-icon {
+  margin-right: 6px;
+  font-size: 14px;
+}
+
+/* Make grid flexible/shrinkable to avoid horizontal scroll */
+.booster-row-fields {
+  display: grid;
+  grid-template-columns: 120px minmax(120px, 1fr) 90px 120px 140px;
+  gap: 10px;
+  width: 100%;
+  min-width: 0; /* allow shrinking */
+}
+.booster-input {
+  border: 1px solid #e6bdbd;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fff;
+  color: #333;
+  font-size: 13px;
+  min-width: 0; /* allow input to shrink inside grid */
+  transition: opacity 0.2s, background-color 0.2s;
+}
+
+/* Disabled input styling */
+.booster-input:disabled,
+.booster-input.disabled {
+  background: #f5f5f5;
+  color: #999;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* smaller date input */
+.booster-row-fields .date-input {
+  padding: 6px 8px;
+}
+
+/* disabled / note section */
+.booster-disabled-section {
+  opacity: 0.7;
+  padding: 12px;
+  border: 1px dashed #efecec;
+  border-radius: 8px;
+}
+.booster-disabled-row {
+  margin-top: 8px;
+}
+.booster-note {
+  color: #666;
+}
+
+/* QR page */
+.booster-qr-page {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  padding: 10px 6px;
+  box-sizing: border-box;
+}
+.booster-qr-left {
+  flex: 1;
+  padding-left: 6px;
+}
+.booster-qr-right {
+  width: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.booster-qr-instructions {
+  color: #8E2626;
+  line-height: 1.4;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+/* QR Code Display */
+.booster-qr-container {
+  display: flex;
+  justify-content: center;
+  padding: 15px;
+  border: 6px solid #8E2626;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(142, 38, 38, 0.15);
+}
+.booster-qr-image {
+  width: 280px;
+  height: 280px;
+  display: block;
+}
+
+/* QR Placeholder (when loading) */
+.booster-qr-placeholder {
+  width: 260px;
+  height: 260px;
+  border: 6px solid #8E2626;
+  border-radius: 6px;
+  background: repeating-linear-gradient(45deg, #fff 0, #fff 12px, #f7f7f7 12px, #f7f7f7 24px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* footer: progress and actions */
+.booster-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-top: 1px solid #eee;
+  background: #fff;
+}
+.booster-progress {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.booster-dot {
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  border: 2px solid #e6bdbd;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.booster-dot.active {
+  background: #8E2626;
+  border-color: #8E2626;
+}
+
+/* -------------------------
+   Button sizing / controls
+   ------------------------- */
+
+/* Base button — normalized so every action-btn has the same layout model */
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  height: 36px;
+  min-width: 64px;
+  box-sizing: border-box;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  line-height: 1;
+  gap: 6px;
+}
+
+/* Small variant: proportional so buttons look uniform together */
+.action-btn--small {
+  padding: 6px 10px;
+  height: 32px;
+  min-width: 56px;
+  font-size: 12px;
+  border-radius: 7px;
+}
+
+/* Cancel / Back - outline look */
+.booster-cancel,
+.booster-back {
+  background: transparent;
+  color: #8E2626;
+  border: 1px solid rgba(142,38,38,0.12);
+}
+
+/* Primary button (Next / Finish) */
+.booster-next {
+  background-color: #8E2626;
+  color: #fff;
+  border: none;
+}
+
+/* booster-actions layout */
+.booster-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+/* responsive */
+
+/* At medium widths we stack label above fields and allow 2-column input layout */
+@media (max-width: 980px) {
+  .booster-day-row-content {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .booster-day-label {
+    width: auto;
+    margin-bottom: 8px;
+    margin-top: 0;
+  }
+  .booster-row-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .booster-disabled-message {
+    margin-left: 0;
+  }
+  .booster-qr-page {
+    flex-direction: column;
+  }
+  .booster-qr-right { 
+    width: 100%; 
+    max-width: 320px;
+  }
+  .booster-qr-container {
+    padding: 12px;
+    border-width: 4px;
+  }
+  .booster-qr-image {
+    width: 220px;
+    height: 220px;
+  }
+  .booster-qr-placeholder { 
+    width: 220px; 
+    height: 220px; 
+    border-width: 4px; 
+  }
+}
+
+/* Very small screens: single column fields and slightly smaller modal */
+@media (max-width: 520px) {
+  .booster-row-fields {
+    grid-template-columns: 1fr;
+  }
+  .booster-modal {
+    width: 100%;
+    max-width: calc(100% - 20px);
+    max-height: calc(100vh - 30px);
+  }
+  .action-btn {
+    padding: 6px 10px;
+    height: 32px;
+    min-width: 52px;
+    font-size: 12px;
+  }
+  .action-btn--small {
+    padding: 5px 8px;
+    height: 30px;
+    min-width: 48px;
+  }
+}
