@@ -1,5 +1,6 @@
 {
   "expo": {
+    "owner": "raven.123",
     "name": "Barangay",
     "slug": "Barangay",
     "version": "1.0.0",
@@ -21,7 +22,8 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.raven.x123.Barangay"
+      "package": "com.raven.mobile",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "favicon": "./app/assets/favicon.png"
@@ -39,7 +41,7 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "45c64a9c-178d-4d7f-bf76-6304c3667e37"
+        "projectId": "1e3aacfa-7cc0-4a17-ac04-81450cb19d32"
       }
     }
   }

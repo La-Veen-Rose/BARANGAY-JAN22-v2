@@ -18,12 +18,24 @@ import { useFocusEffect } from '@react-navigation/native';
 import { databases, appwriteConfig, account } from './appwriteConfig';
 import { Query } from 'appwrite';
 import { fetchAnimalBiteReportData } from './reportAnalyticsService';
+import { getCurrentStaffProfile, getStaffHeaderLocation, STAFF_ROLE } from './staffProfileService';
 
 const { width } = Dimensions.get('window');
+
+// Basic responsive font scaling (no extra dependencies)
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const responsiveFont = (baseSize, { min, max } = {}) => {
+    const scale = width / 375; // iPhone X-ish baseline
+    const scaled = baseSize * scale;
+    const lower = min ?? baseSize * 0.85;
+    const upper = max ?? baseSize * 1.15;
+    return clamp(Math.round(scaled), Math.round(lower), Math.round(upper));
+};
 
 function MainDashboard({ navigation, openSidebar }) {
 
     const [workerProfile, setWorkerProfile] = useState(null);
+    const [staffRole, setStaffRole] = useState(null);
     const [submittedCasesCount, setSubmittedCasesCount] = useState(0);
     const [verifiedCasesCount, setVerifiedCasesCount] = useState(0);
     const [terminatedCasesCount, setTerminatedCasesCount] = useState(0);
@@ -34,24 +46,12 @@ function MainDashboard({ navigation, openSidebar }) {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    // ✅ GET LOGGED IN WORKER PROFILE
+    // ✅ GET LOGGED IN STAFF PROFILE (BHW or Physician)
     const fetchWorkerProfile = useCallback(async () => {
         try {
-            const user = await account.get();
-
-            const res = await databases.listDocuments(
-                appwriteConfig.staffDatabaseId,
-                appwriteConfig.healthWorkersCollectionId,
-                [
-                    Query.equal("auth_user_id", user.$id)
-                ]
-            );
-
-            if (res.total === 0) {
-                throw new Error("No health worker profile found.");
-            }
-
-            setWorkerProfile(res.documents[0]);
+            const { profile, role } = await getCurrentStaffProfile();
+            setWorkerProfile(profile);
+            setStaffRole(role);
 
         } catch (err) {
             setError(err.message);
@@ -63,60 +63,74 @@ function MainDashboard({ navigation, openSidebar }) {
         if (!workerProfile) return;
 
         try {
-            const submittedRes = await databases.listDocuments(
-                appwriteConfig.patientDatabaseId,
-                appwriteConfig.patientRecordsCollectionId,
-                [
-                    Query.equal('purok', workerProfile.purok),
-                    Query.equal('barangay', workerProfile.barangay),
-                    Query.limit(1)
-                ]
-            );
+            setIsLoading(true);
+            setError(null);
 
-            const verifiedRes = await databases.listDocuments(
-                appwriteConfig.patientDatabaseId,
-                appwriteConfig.patientRecordsCollectionId,
-                [
-                    Query.equal('purok', workerProfile.purok),
-                    Query.equal('barangay', workerProfile.barangay),
-                    Query.equal('status', 'verified'),
-                    Query.limit(1)
-                ]
-            );
+            const user = await account.get();
+            const isPhysician = staffRole === STAFF_ROLE.PHYSICIAN;
 
-            const terminatedRes = await databases.listDocuments(
-                appwriteConfig.patientDatabaseId,
-                appwriteConfig.patientRecordsCollectionId,
-                [
-                    Query.equal('purok', workerProfile.purok),
-                    Query.equal('barangay', workerProfile.barangay),
-                    Query.equal('status', 'terminated'),
-                    Query.limit(1)
-                ]
-            );
+            // BHW: show only records created by this worker
+            // Physician: can access ALL patient records
+            const submittedOwnerFilter = isPhysician
+                ? []
+                : [
+                    (() => {
+                        const workerHwId =
+                            workerProfile.healthWorkerId ||
+                            workerProfile.healthWorkerID ||
+                            workerProfile.healthWorkerIDNumber ||
+                            workerProfile.$id;
+                        return Query.or([
+                            Query.equal('recordedByUserID', user.$id),
+                            Query.equal('recordedByHWID', workerHwId),
+                        ]);
+                    })(),
+                ];
 
-            setSubmittedCasesCount(submittedRes.total);
-            setVerifiedCasesCount(verifiedRes.total);
-            setTerminatedCasesCount(terminatedRes.total);
+            // Fetch counts first so the dashboard can render quickly.
+            const [submittedRes, verifiedRes, terminatedRes] = await Promise.all([
+                databases.listDocuments(
+                    appwriteConfig.patientDatabaseId,
+                    appwriteConfig.patientRecordsCollectionId,
+                    [...submittedOwnerFilter, Query.limit(1)]
+                ),
+                databases.listDocuments(
+                    appwriteConfig.patientDatabaseId,
+                    appwriteConfig.patientRecordsCollectionId,
+                    [...submittedOwnerFilter, Query.equal('status', 'verified'), Query.limit(1)]
+                ),
+                databases.listDocuments(
+                    appwriteConfig.patientDatabaseId,
+                    appwriteConfig.patientRecordsCollectionId,
+                    [...submittedOwnerFilter, Query.equal('status', 'terminated'), Query.limit(1)]
+                ),
+            ]);
 
-            // ✅ Link dashboard summary cards to the same
-            // analytics used by the AnimalBiteReport screen
-            const analytics = await fetchAnimalBiteReportData();
+            setSubmittedCasesCount(submittedRes.total || 0);
+            setVerifiedCasesCount(verifiedRes.total || 0);
+            setTerminatedCasesCount(terminatedRes.total || 0);
 
-            // Total cases this month + trend (city-wide verified records)
-            setMonthlyCases(analytics.monthlyCaseSummary.totalCases || 0);
-            setMonthlyTrend(analytics.monthlyCaseSummary.trendFromLastMonth || 0);
+            // ✅ Unblock UI after counts are ready.
+            setIsLoading(false);
 
-            // Annual bite report (city-wide verified records)
-            setAnnualCases(analytics.annualBiteSummary.totalReports || 0);
-            setAnnualTrend(analytics.annualBiteSummary.annualTrend || 0);
+            // Fetch heavier analytics separately; don't block the dashboard.
+            fetchAnimalBiteReportData()
+                .then((analytics) => {
+                    setMonthlyCases(analytics?.monthlyCaseSummary?.totalCases || 0);
+                    setMonthlyTrend(analytics?.monthlyCaseSummary?.trendFromLastMonth || 0);
+                    setAnnualCases(analytics?.annualBiteSummary?.totalReports || 0);
+                    setAnnualTrend(analytics?.annualBiteSummary?.annualTrend || 0);
+                })
+                .catch((e) => {
+                    console.warn('Dashboard analytics failed:', e?.message || e);
+                });
 
         } catch (err) {
             setError(`Failed to load dashboard data: ${err.message}`);
         } finally {
             setIsLoading(false);
         }
-    }, [workerProfile]);
+    }, [workerProfile, staffRole]);
 
     useEffect(() => {
         fetchWorkerProfile();
@@ -136,7 +150,7 @@ function MainDashboard({ navigation, openSidebar }) {
         Alert.alert(
             "Error",
             error,
-            [{ text: "Back to Login", onPress: () => navigation.navigate("LogIn") }]
+            [{ text: "Back to Login", onPress: () => navigation.navigate("SelectRole") }]
         );
         return null;
     }
@@ -153,17 +167,17 @@ function MainDashboard({ navigation, openSidebar }) {
         );
     }
 
-    const pendingSubmitted = submittedCasesCount - verifiedCasesCount;
+    const pendingSubmitted = Math.max(0, submittedCasesCount - verifiedCasesCount - terminatedCasesCount);
 
     return (
         <ImageBackground style={styles.background} source={require("../assets/bg-blue.png")}>
             {/* HEADER */}
             <View style={styles.topHeader}>
                 <TouchableOpacity onPress={openSidebar}>
-                    <Ionicons name="menu" size={28} color="#0F74A7" />
+                    <Ionicons name="menu" size={28} color="#125872" />
                 </TouchableOpacity>
 
-                <Text style={styles.headerTitle}>{workerProfile.barangay}, Tagum</Text>
+                <Text style={styles.headerTitle}>{getStaffHeaderLocation(workerProfile, staffRole)}</Text>
 
                 <TouchableOpacity onPress={() => navigation.navigate('MyProfile', { workerProfile })}>
                     <View style={styles.profileIcon}>
@@ -178,13 +192,14 @@ function MainDashboard({ navigation, openSidebar }) {
                     style={styles.mainCard}
                     onPress={() => navigation.navigate("NavigationHeader", { workerProfile })}
                 >
-                    <Text style={styles.mainCardTitle}>Submitted cases</Text>
+                    <Text style={[styles.mainCardTitle, { color: '#ffffff' }]}>Submitted cases</Text>
                     <View style={styles.mainCardRow}>
                         <Text style={styles.mainCardNumber}>{submittedCasesCount}</Text>
                         <View style={styles.mainCardStatus}>
                             <Text style={styles.statusLabel}>Status:</Text>
-                            <Text style={styles.statusText}>{verifiedCasesCount} ({verifiedCasesCount}) verified forms</Text>
-                            <Text style={styles.statusText}>{pendingSubmitted} ({pendingSubmitted}) pending forms</Text>
+                            <Text style={styles.statusText}>{pendingSubmitted} pending</Text>
+                            <Text style={styles.statusText}>{verifiedCasesCount} verified</Text>
+                            <Text style={styles.statusText}>{terminatedCasesCount} terminated</Text>
                         </View>
                     </View>
                 </TouchableOpacity>
@@ -197,7 +212,15 @@ function MainDashboard({ navigation, openSidebar }) {
                             style={styles.halfCard}
                             onPress={() => navigation.navigate('AnimalBiteReport', { workerProfile })}
                         >
-                            <Text style={styles.halfCardTitle}>Total Cases this Month</Text>
+                            <Text
+                                style={[styles.halfCardTitle, { fontSize: responsiveFont(16, { min: 12, max: 18 }) }]}
+                                numberOfLines={1}
+                                adjustsFontSizeToFit
+                                minimumFontScale={0.75}
+                                ellipsizeMode="tail"
+                            >
+                                Total Cases this Month
+                            </Text>
                             <View style={styles.numberWithLabel}>
                                 <Text style={styles.halfCardNumber}>{monthlyCases} cases</Text>
                             </View>
@@ -209,7 +232,15 @@ function MainDashboard({ navigation, openSidebar }) {
                             style={[styles.halfCard, { marginTop: 12 }]}
                             onPress={() => navigation.navigate('AnimalBiteReport', { workerProfile })}
                         >
-                            <Text style={styles.halfCardTitle}>Annual Bite Reports</Text>
+                            <Text
+                                style={[styles.halfCardTitle, { fontSize: responsiveFont(16, { min: 12, max: 18 }) }]}
+                                numberOfLines={1}
+                                adjustsFontSizeToFit
+                                minimumFontScale={0.75}
+                                ellipsizeMode="tail"
+                            >
+                                Annual Bite Reports
+                            </Text>
                             <View style={styles.numberWithLabel}>
                                 <Text style={styles.halfCardNumber}>{annualCases} reports</Text>
                             </View>
@@ -219,7 +250,15 @@ function MainDashboard({ navigation, openSidebar }) {
 
                     {/* RAVEN CARD */}
                     <TouchableOpacity style={styles.ravenCard}>
-                        <Text style={styles.ravenText}>RAVEN</Text>
+                        <Text
+                            style={[styles.ravenText, { fontSize: responsiveFont(32, { min: 22, max: 36 }) }]}
+                            numberOfLines={1}
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.7}
+                            ellipsizeMode="tail"
+                        >
+                            RAVEN
+                        </Text>
                         <View style={styles.shieldContainer}>
                             <Image source={require('../assets/RAVEN MONO 5.png')} style={styles.ravenImage} />
                         </View>
@@ -227,11 +266,16 @@ function MainDashboard({ navigation, openSidebar }) {
                 </View>
 
                 {/* RABIES EDUCATION CARD */}
-                <TouchableOpacity
-                    style={styles.rabEdCard}
-                    onPress={() => navigation.navigate('RabEdAnnouncements')}
-                >
-                    <Text style={styles.rabEdTitle}>Rabies Education (RabEd)</Text>
+                <TouchableOpacity style={styles.rabEdCard}>
+                    <Text
+                        style={[styles.rabEdTitle, { fontSize: responsiveFont(24, { min: 16, max: 28 }) }]}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.75}
+                        ellipsizeMode="tail"
+                    >
+                        Rabies Education (RabEd)
+                    </Text>
                     <Text style={styles.rabEdDescription}>
                         Rabies Education (RabEd) empowers Tagum City with clear, bite-sized lessons to prevent panic and act wisely.
                     </Text>
@@ -258,7 +302,7 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(255,255,255,0.7)',
     },
     loadingText: { 
-        color: '#0F74A7', 
+        color: '#125872', 
         marginTop: 10, 
         fontSize: 16 
     },
@@ -277,7 +321,7 @@ const styles = StyleSheet.create({
     headerTitle: { 
         fontSize: 18, 
         fontWeight: "700", 
-        color: "#0F74A7", 
+        color: "#125872", 
         flex: 1, 
         marginLeft: 15,
         letterSpacing: -0.5,
@@ -287,14 +331,14 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: '#0F74A7',
+        backgroundColor: '#125872',
         justifyContent: 'center',
         alignItems: 'center',
     },
     
     // MAIN CARD - SUBMITTED CASES
     mainCard: {
-        backgroundColor: "#0F74A7",
+        backgroundColor: "#125872",
         borderRadius: 20,
         padding: 18,
         marginBottom: 15,
@@ -323,6 +367,7 @@ const styles = StyleSheet.create({
     },
     mainCardStatus: {
         alignItems: 'flex-end',
+        paddingBottom: -4,
     },
     statusLabel: { 
         color: "white", 
@@ -353,7 +398,7 @@ const styles = StyleSheet.create({
         borderRadius: 15,
         padding: 15,
         borderWidth: 2.5,
-        borderColor: '#0F74A7',
+        borderColor: '#125872',
         shadowColor: "#000",
         shadowOpacity: 0.1,
         shadowRadius: 3,
@@ -362,7 +407,7 @@ const styles = StyleSheet.create({
     halfCardTitle: {
         fontSize: 16,
         fontWeight: '900',
-        color: '#0F74A7',
+        color: '#125872',
         marginBottom: 0,
         letterSpacing: -0.5,
         textAlign: 'center',
@@ -371,22 +416,24 @@ const styles = StyleSheet.create({
         fontSize: 28,
         letterSpacing: -2,
         fontWeight: '900',
-        color: '#0F74A7',
+        color: '#125872',
         textAlign: 'center',
     },
     trendText: {
         fontSize: 12,
         letterSpacing: -0.5,
-        color: '#0F74A7',
+        color: '#125872',
         fontWeight: '500',
         textAlign: 'center',
+        paddingBottom: -5,
     },
     numberWithLabel: {
         flexDirection: 'row',
         alignItems: 'flex-end',
-        marginBottom: 10,
-        marginTop: 10,
+        marginBottom: -2,
+        marginTop: -2,
         justifyContent: 'center',
+      
     },
     // numberLabel: {
     //     fontSize: 20,
@@ -398,7 +445,7 @@ const styles = StyleSheet.create({
     
     // RAVEN CARD
     ravenCard: {
-        backgroundColor: '#0F74A7',
+        backgroundColor: '#125872',
         borderRadius: 15,
         padding: 15,
         justifyContent: 'center',
@@ -408,6 +455,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.15,
         shadowRadius: 4,
         elevation: 4,
+   
     },
     ravenText: {
         fontSize: 32,
@@ -429,7 +477,7 @@ const styles = StyleSheet.create({
     
     // RABIES EDUCATION CARD
     rabEdCard: {
-        backgroundColor: '#0F74A7',
+        backgroundColor: '#125872',
         borderRadius: 12,
         padding: 16,
         marginBottom: 12,
@@ -443,13 +491,13 @@ const styles = StyleSheet.create({
         fontWeight: '800',
         color: 'white',
         letterSpacing: -0.5,
-        marginBottom: 8,
+        marginBottom: 5,
     },
     rabEdDescription: {
         fontSize: 14,
         color: 'white',
         lineHeight: 18,
-        marginBottom: 15,
+        marginBottom: 12,
         marginTop: 5,
         opacity: 0.95,
     },

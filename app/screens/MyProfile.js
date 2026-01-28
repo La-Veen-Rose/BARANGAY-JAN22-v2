@@ -8,6 +8,7 @@ import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, P
 import { databases, appwriteConfig, account } from './appwriteConfig';
 import client from './appwriteConfig';
 import { Query } from 'appwrite';
+import { getCurrentStaffProfile, STAFF_ROLE } from './staffProfileService';
 
 // SVG Logo
 import RavenLogo from "../assets/raven-logo-blue-fang.svg";
@@ -22,6 +23,7 @@ export default function MyProfile({ navigation, route }) {
     });
     
     const [healthWorker, setHealthWorker] = useState(null);
+    const [staffRole, setStaffRole] = useState(null);
     const [userPhone, setUserPhone] = useState("");
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -78,18 +80,10 @@ export default function MyProfile({ navigation, route }) {
             setUserPhone(user.phone || "N/A");
             setNewPhone(user.phone || "");
 
-            // Fetch health worker profile from database
-            const res = await databases.listDocuments(
-                appwriteConfig.staffDatabaseId,
-                appwriteConfig.healthWorkersCollectionId,
-                [Query.equal("auth_user_id", user.$id)]
-            );
-
-            if (res.total > 0) {
-                setHealthWorker(res.documents[0]);
-            } else {
-                setError("Health worker profile not found.");
-            }
+            // Fetch staff profile (BHW or Physician)
+            const staff = await getCurrentStaffProfile();
+            setHealthWorker(staff.profile);
+            setStaffRole(staff.role);
         } catch (err) {
             console.error("Error fetching profile:", err);
             setError(err.message);
@@ -185,16 +179,30 @@ export default function MyProfile({ navigation, route }) {
     };
 
     // Display values
-    const displayHWID = healthWorker?.healthWorkerID || "N/A";
-    const displayName = healthWorker?.fullName || "N/A";
-    const displayEmail = healthWorker?.email || "N/A";
-    const displayRole = healthWorker?.role || "N/A";
+    const isPhysician = staffRole === STAFF_ROLE.PHYSICIAN;
+
+    const displayHWID = isPhysician
+        ? (healthWorker?.License_No || healthWorker?.licenseNo || healthWorker?.LicenseNo || "N/A")
+        : (healthWorker?.healthWorkerID || "N/A");
+
+    const displayName = isPhysician
+        ? (healthWorker?.Physician_Name || healthWorker?.physicianName || healthWorker?.fullName || "N/A")
+        : (healthWorker?.fullName || "N/A");
+
+    const displayEmail = isPhysician
+        ? (healthWorker?.email || "N/A")
+        : (healthWorker?.email || "N/A");
+
+    const displayRole = isPhysician ? "Physician" : (healthWorker?.role || "BHW");
     const displayPhone = userPhone || "N/A";
     
     // Location: purok + barangay + Tagum City
     const purok = healthWorker?.purok || "";
     const barangay = healthWorker?.barangay || "";
-    const displayLocation = [purok, barangay, "Tagum City"].filter(Boolean).join(", ");
+    const office = healthWorker?.office || "";
+    const displayLocation = isPhysician
+        ? [office, "Tagum City"].filter(Boolean).join(", ")
+        : [purok, barangay, "Tagum City"].filter(Boolean).join(", ");
 
     // Wait for fonts to load
     if (!fontsLoaded) {
@@ -229,7 +237,7 @@ export default function MyProfile({ navigation, route }) {
             >
                 {/* INFO CARD */}
                 <View style={styles.infoCard}>
-                    <ProfileField icon="id-card-outline" label="Health Worker ID" value={displayHWID} />
+                    <ProfileField icon="id-card-outline" label={isPhysician ? "Physician ID" : "Health Worker ID"} value={displayHWID} />
                 <ProfileField icon="person-outline" label="Name" value={displayName} />
                 <ProfileField icon="mail-outline" label="Email" value={displayEmail} />
                 <ProfileField icon="people-outline" label="Role" value={displayRole} />

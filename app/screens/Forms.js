@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { databases, account, appwriteConfig, ID } from './appwriteConfig';
 import { Query } from 'appwrite';
+import { getCurrentStaffProfile, STAFF_ROLE } from './staffProfileService';
 
 // Image Upload Service
 import { uploadMultipleImages, deleteUploadedFiles, checkNetwork } from './imageUploadService';
@@ -81,6 +82,17 @@ const Forms = ({ navigation }) => {
     const [uploadProgress, setUploadProgress] = useState(0);
     const [uploadStatus, setUploadStatus] = useState(''); // 'uploading', 'saving', ''
     const [showUploadModal, setShowUploadModal] = useState(false);
+
+    const withTimeout = (promise, ms, timeoutMessage) => {
+        let timeoutId;
+        const timeoutPromise = new Promise((_, reject) => {
+            timeoutId = setTimeout(() => reject(new Error(timeoutMessage)), ms);
+        });
+
+        return Promise.race([promise, timeoutPromise]).finally(() => {
+            if (timeoutId) clearTimeout(timeoutId);
+        });
+    };
 
     const handleInputChange = useCallback((fieldName, value) => {
         setFormData(prev => ({ ...prev, [fieldName]: value }));
@@ -225,25 +237,27 @@ const Forms = ({ navigation }) => {
         setIsSubmitting(true);
         setShowUploadModal(true);
         setUploadProgress(0);
+        setUploadStatus('Starting submission...');
         
         let uploadedFileIds = []; // Track uploaded files for cleanup on failure
 
         try {
-            const user = await account.get();
-
-            // Fetch health worker profile
-            setUploadStatus('Fetching profile...');
-            const staffRes = await databases.listDocuments(
-                appwriteConfig.staffDatabaseId,
-                appwriteConfig.healthWorkersCollectionId,
-                [Query.equal("auth_user_id", user.$id)]
+            const user = await withTimeout(
+                account.get(),
+                15000,
+                'Timed out while fetching your account. Please check your connection and try again.'
             );
 
-            if (staffRes.total === 0) {
-                throw new Error("Health worker profile not found.");
-            }
+            // Fetch staff profile (BHW or Physician)
+            setUploadStatus('Fetching profile...');
+            const staff = await withTimeout(
+                getCurrentStaffProfile(),
+                20000,
+                'Timed out while fetching your profile. Please try again.'
+            );
 
-            const worker = staffRes.documents[0];
+            const worker = staff.profile;
+            const staffRole = staff.role;
 
             // Upload images to Appwrite Storage (if any)
             // Store ONLY file IDs, generate URLs on-demand
@@ -254,13 +268,18 @@ const Forms = ({ navigation }) => {
                 setUploadStatus(`Uploading ${images.length} image(s)...`);
                 
                 const imageUris = images.map(img => img.uri);
-                const uploadResult = await uploadMultipleImages(
-                    imageUris,
-                    user.$id,
-                    (progress) => {
-                        setUploadProgress(Math.round(progress * 0.7)); // 70% for image upload
-                        setUploadStatus(`Uploading image... ${Math.round(progress)}%`);
-                    }
+                const uploadResult = await withTimeout(
+                    uploadMultipleImages(
+                        imageUris,
+                        user.$id,
+                        (progress) => {
+                            setUploadProgress(Math.round(progress * 0.7)); // 70% for image upload
+                            setUploadStatus(`Uploading image... ${Math.round(progress)}%`);
+                        }
+                    ),
+                    // Roughly 45s per image, with a sane cap
+                    Math.min(180000, Math.max(45000, images.length * 45000)),
+                    'Image upload is taking too long. Please try again (or submit without images).'
                 );
 
                 if (uploadResult.failed > 0) {
@@ -306,7 +325,11 @@ const Forms = ({ navigation }) => {
             setUploadStatus('Saving record...');
 
             // Generate unique submission ID (BRGYCODE-YYYY-SEQUENCE)
-            const submissionID = await getSubmissionID(worker.barangay);
+            const submissionID = await withTimeout(
+                getSubmissionID(worker?.barangay || formData.barangay),
+                20000,
+                'Timed out while generating a submission ID. Please try again.'
+            );
 
             // Convert integer fields
             const formattedData = {
@@ -332,18 +355,22 @@ const Forms = ({ navigation }) => {
                 purok: formData.purok,
                 barangay: formData.barangay,
                 recordedByUserID: user.$id,
-                recordedByHWID: worker.healthWorkerId || worker.$id,
+                recordedByHWID: staffRole === STAFF_ROLE.BHW ? (worker.healthWorkerId || worker.$id) : worker.$id,
                 submissionID,
                 dateSubmitted: new Date().toISOString(),
             };
 
             setUploadProgress(85);
 
-            await databases.createDocument(
-                appwriteConfig.patientDatabaseId,
-                appwriteConfig.patientRecordsCollectionId,
-                ID.unique(),
-                data
+            await withTimeout(
+                databases.createDocument(
+                    appwriteConfig.patientDatabaseId,
+                    appwriteConfig.patientRecordsCollectionId,
+                    ID.unique(),
+                    data
+                ),
+                25000,
+                'Timed out while saving your record. Please try again.'
             );
 
             setUploadProgress(100);
@@ -454,6 +481,8 @@ const Forms = ({ navigation }) => {
                 <ScrollView
                     ref={scrollViewRef}
                     style={styles.content}
+                    keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode="on-drag"
                     contentContainerStyle={{ paddingBottom: NAVIGATION_BAR_HEIGHT + TAB_BAR_HEIGHT }}
                 >
                     {renderSection()}

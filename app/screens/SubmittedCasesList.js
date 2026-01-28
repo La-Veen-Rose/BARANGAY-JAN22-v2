@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
     View, 
     StyleSheet, 
@@ -7,12 +7,13 @@ import {
     FlatList,
     ActivityIndicator,
     Alert,
-    Modal,
-    RefreshControl,
+    Modal
 } from "react-native";
 import { databases, appwriteConfig, account } from './appwriteConfig';
 import { Query } from 'appwrite';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
+import { getCurrentStaffProfile, STAFF_ROLE } from './staffProfileService';
 
 // ---------------------------
 // REUSABLE COMPONENTS
@@ -118,29 +119,16 @@ const TerminatedReasonModal = ({ visible, onClose, patientName, terminateReason,
 // ---------------------------
 function SubmittedCasesList({ navigation, route, onOpenPatientRecordContent }) {
     const { workerProfile: passedProfile, focusStatus } = route?.params || {};
-    const initialStatus = focusStatus || 'Pending';
-    const [selectedStatus, setSelectedStatus] = useState(initialStatus);
+    const [selectedStatus, setSelectedStatus] = useState('Pending');
     const [cases, setCases] = useState([]);
     const [loading, setLoading] = useState(true);
     const [workerProfile, setWorkerProfile] = useState(passedProfile || null);
+    const [staffRole, setStaffRole] = useState(null);
     const [showTerminatedModal, setShowTerminatedModal] = useState(false);
     const [selectedTerminatedCase, setSelectedTerminatedCase] = useState(null);
     const [terminatedReasonLoading, setTerminatedReasonLoading] = useState(false);
 
-    // Track previous cases to detect newly verified records in this session
-    const prevCasesRef = useRef([]);
-    const [newlyVerifiedCases, setNewlyVerifiedCases] = useState([]);
-    const [showNewVerifiedModal, setShowNewVerifiedModal] = useState(false);
-    const [refreshing, setRefreshing] = useState(false);
-
-    // Update selected status if focusStatus route param changes (e.g., from notification)
-    useEffect(() => {
-        if (focusStatus && focusStatus !== selectedStatus) {
-            setSelectedStatus(focusStatus);
-        }
-    }, [focusStatus]);
-
-    // Fetch worker profile if not passed via params
+    // Fetch staff profile if not passed via params
     useEffect(() => {
         const fetchWorkerProfile = async () => {
             if (passedProfile) {
@@ -149,25 +137,13 @@ function SubmittedCasesList({ navigation, route, onOpenPatientRecordContent }) {
             }
 
             try {
-                const user = await account.get();
-                const userEmail = user.email;
-
-                const response = await databases.listDocuments(
-                    appwriteConfig.staffDatabaseId,
-                    appwriteConfig.healthWorkersCollectionId,
-                    [Query.equal('email', userEmail)]
-                );
-
-                if (response.documents.length > 0) {
-                    setWorkerProfile(response.documents[0]);
-                } else {
-                    Alert.alert('Error', 'Worker profile not found. Please contact administrator.');
-                    navigation.navigate("LogIn");
-                }
+                const staff = await getCurrentStaffProfile();
+                setWorkerProfile(staff.profile);
+                setStaffRole(staff.role);
             } catch (error) {
                 console.error('Error fetching worker profile:', error);
                 Alert.alert('Error', 'Failed to fetch worker profile. Please login again.');
-                navigation.navigate("LogIn");
+                navigation.navigate("SelectRole");
             }
         };
 
@@ -178,7 +154,7 @@ function SubmittedCasesList({ navigation, route, onOpenPatientRecordContent }) {
     useEffect(() => {
         if (!workerProfile && !loading) {
             Alert.alert("Error", "Worker profile missing. Please login again.");
-            navigation.navigate("LogIn");
+            navigation.navigate("SelectRole");
         }
     }, [workerProfile, loading, navigation]);
 
@@ -199,34 +175,61 @@ function SubmittedCasesList({ navigation, route, onOpenPatientRecordContent }) {
         return 'Pending';
     };
 
-    const fetchSubmittedCases = async (isInitialLoad = false) => {
-        try {
-            if (isInitialLoad) {
-                setLoading(true);
-            } else {
-                setRefreshing(true);
-            }
+    // If navigation passed a desired status tab (from push notification), apply it.
+    useEffect(() => {
+        if (focusStatus) {
+            setSelectedStatus(normalizeStatus(focusStatus));
+        }
+    }, [focusStatus]);
 
-            // Guard: Check if workerProfile exists before accessing its properties
-            if (!workerProfile || !workerProfile.purok || !workerProfile.barangay) {
-                Alert.alert('Error', 'Worker profile information missing. Please login again.');
-                navigation.navigate("LogIn");
-                setLoading(false);
-                setRefreshing(false);
+    const fetchSubmittedCases = async () => {
+        try {
+            if (!workerProfile) {
+                Alert.alert('Error', 'Worker profile missing. Please login again.');
+                navigation.navigate("SelectRole");
                 return;
             }
 
-            const purok = workerProfile.purok;
-            const barangay = workerProfile.barangay;
+            setLoading(true);
 
-            // 🔑 CHANGE: Filter by purok AND barangay
-            // This allows all workers at the same purok and barangay to see all records from that location
+            // Always resolve role from session so physicians can access all records
+            const staff = await getCurrentStaffProfile();
+            if (!staffRole) setStaffRole(staff.role);
+
+            const userId = staff.user?.$id;
+
+            const filters = [];
+            if (staff.role !== STAFF_ROLE.PHYSICIAN) {
+                const workerHwId =
+                    (workerProfile && (workerProfile.healthWorkerId || workerProfile.healthWorkerID || workerProfile.healthWorkerIDNumber)) ||
+                    workerProfile?.$id;
+
+                if (!workerHwId && !userId) {
+                    Alert.alert('Error', 'Unable to identify current user. Please login again.');
+                    navigation.navigate("SelectRole");
+                    return;
+                }
+
+                if (userId && workerHwId) {
+                    // Prefer exact matches by owner identity; supports both newer and older records.
+                    filters.push(
+                        Query.or([
+                            Query.equal('recordedByUserID', userId),
+                            Query.equal('recordedByHWID', workerHwId),
+                        ])
+                    );
+                } else if (workerHwId) {
+                    filters.push(Query.equal('recordedByHWID', workerHwId));
+                } else {
+                    filters.push(Query.equal('recordedByUserID', userId));
+                }
+            }
+
             let res = await databases.listDocuments(
                 appwriteConfig.patientDatabaseId,
                 appwriteConfig.patientRecordsCollectionId,
                 [
-                    Query.equal('purok', purok),
-                    Query.equal('barangay', barangay),
+                    ...filters,
                     Query.orderDesc('$createdAt'),
                     Query.limit(100)
                 ]
@@ -250,25 +253,6 @@ function SubmittedCasesList({ navigation, route, onOpenPatientRecordContent }) {
                 })
             );
 
-            // Detect records that have just transitioned to Verified
-            const prevById = (prevCasesRef.current || []).reduce((acc, item) => {
-                acc[item.id] = item;
-                return acc;
-            }, {});
-
-            const justVerified = formattedCases.filter((item) => {
-                if (item.status !== 'Verified') return false;
-                const prev = prevById[item.id];
-                const prevStatus = prev?.status;
-                return prevStatus && prevStatus !== 'Verified';
-            });
-
-            if (justVerified.length > 0) {
-                setNewlyVerifiedCases(justVerified);
-                setShowNewVerifiedModal(true);
-            }
-
-            prevCasesRef.current = formattedCases;
             setCases(formattedCases);
 
         } catch (error) {
@@ -276,18 +260,20 @@ function SubmittedCasesList({ navigation, route, onOpenPatientRecordContent }) {
             Alert.alert('Error', 'Failed to fetch submitted cases.');
         } finally {
             setLoading(false);
-            setRefreshing(false);
         }
     };
 
     useEffect(() => {
-        fetchSubmittedCases(true);
+        fetchSubmittedCases();
     }, [workerProfile]);
 
-    const handleRefresh = () => {
-        if (!workerProfile || refreshing) return;
-        fetchSubmittedCases(false);
-    };
+    useFocusEffect(
+        useCallback(() => {
+            if (workerProfile) {
+                fetchSubmittedCases();
+            }
+        }, [workerProfile])
+    );
 
     // Handle showing terminated reason modal
     const handleShowTerminatedReason = async (caseItem) => {
@@ -344,14 +330,6 @@ function SubmittedCasesList({ navigation, route, onOpenPatientRecordContent }) {
                         />
                     )}
                     contentContainerStyle={styles.listContent}
-                    refreshControl={
-                        <RefreshControl
-                            refreshing={refreshing}
-                            onRefresh={handleRefresh}
-                            tintColor="#125872"
-                            colors={["#125872"]}
-                        />
-                    }
                     ListEmptyComponent={() => (
                         <Text style={styles.emptyText}>
                             No {selectedStatus.toLowerCase()} cases found.
@@ -367,35 +345,6 @@ function SubmittedCasesList({ navigation, route, onOpenPatientRecordContent }) {
                 terminateReason={selectedTerminatedCase?.terminateReason}
                 loading={terminatedReasonLoading}
             />
-
-            {/* Newly verified notification: informs worker that prescriptions are now available */}
-            <Modal
-                transparent
-                animationType="fade"
-                visible={showNewVerifiedModal && newlyVerifiedCases.length > 0}
-                onRequestClose={() => setShowNewVerifiedModal(false)}
-            >
-                <View style={styles.newVerifiedOverlay}>
-                    <View style={styles.newVerifiedContent}>
-                        <View style={styles.newVerifiedHeader}>
-                            <Ionicons name="checkmark-circle" size={28} color="#22C55E" />
-                            <Text style={styles.newVerifiedTitle}>Record Verified</Text>
-                        </View>
-                        <Text style={styles.newVerifiedBody}>
-                            {newlyVerifiedCases.length === 1
-                                ? `A patient record has just been verified by the City Health Office. The prescription details are now available inside the patient record under "Treatment Plan & Vaccines". You may open the record so the patient can take a photo of the prescription.`
-                                : `${newlyVerifiedCases.length} patient records have just been verified. Prescriptions are now available inside each patient record under "Treatment Plan & Vaccines".`}
-                        </Text>
-
-                        <TouchableOpacity
-                            style={styles.newVerifiedButton}
-                            onPress={() => setShowNewVerifiedModal(false)}
-                        >
-                            <Text style={styles.newVerifiedButtonText}>Got it</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </Modal>
         </View>
     );
 }
@@ -559,57 +508,6 @@ const styles = StyleSheet.create({
     closeModalButtonText: {
         color: '#fff',
         fontSize: 14,
-        fontWeight: '600',
-    },
-
-    // Newly verified modal styles
-    newVerifiedOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.4)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-    },
-    newVerifiedContent: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: 18,
-        paddingHorizontal: 20,
-        paddingVertical: 22,
-        width: '100%',
-        maxWidth: 380,
-        shadowColor: '#000',
-        shadowOpacity: 0.25,
-        shadowRadius: 8,
-        shadowOffset: { width: 0, height: 4 },
-        elevation: 8,
-    },
-    newVerifiedHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 10,
-        gap: 8,
-    },
-    newVerifiedTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#125872',
-    },
-    newVerifiedBody: {
-        fontSize: 13,
-        color: '#444',
-        lineHeight: 20,
-        marginBottom: 18,
-    },
-    newVerifiedButton: {
-        alignSelf: 'flex-end',
-        backgroundColor: '#125872',
-        paddingHorizontal: 18,
-        paddingVertical: 10,
-        borderRadius: 999,
-    },
-    newVerifiedButtonText: {
-        color: '#FFFFFF',
-        fontSize: 13,
         fontWeight: '600',
     },
 });

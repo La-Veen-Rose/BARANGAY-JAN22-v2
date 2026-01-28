@@ -175,13 +175,16 @@ const BPInputGroup = ({ value, onInputChange, fieldName }) => {
 const FormInput = ({ label, required, onInputChange, fieldName, value, placeholder, keyboardType = 'default', style, parseNumeric = false, ...props }) => {
     const handleChange = (text) => {
         if (parseNumeric) {
-            // Allow only numbers and a single decimal point
-            const cleaned = String(text).replace(/[^0-9.]/g, '');
-            const parsed = cleaned === '' ? '' : parseFloat(cleaned);
-            onInputChange(fieldName, parsed);
+            // Keep as a string while typing to avoid cursor/value glitches.
+            // Allow only digits and a single decimal point.
+            const raw = String(text ?? '');
+            const digitsAndDot = raw.replace(/[^0-9.]/g, '');
+            const parts = digitsAndDot.split('.');
+            const normalized = parts.length <= 1 ? digitsAndDot : `${parts[0]}.${parts.slice(1).join('')}`;
+            onInputChange(fieldName, normalized);
         } else {
-            // Force uppercase for all text input fields
-            onInputChange(fieldName, text.toUpperCase());
+            // Store text as-is (no forced uppercase to avoid input lag)
+            onInputChange(fieldName, text);
         }
     };
 
@@ -202,6 +205,7 @@ const FormInput = ({ label, required, onInputChange, fieldName, value, placehold
                 placeholderTextColor="#aaa"
                 onChangeText={handleChange}
                 keyboardType={keyboardType}
+                autoCapitalize="none"
                 {...props}
             />
         </View>

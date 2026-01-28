@@ -10,6 +10,7 @@ import {
     TextInput,
     TouchableOpacity,
     View,
+    Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Query } from "appwrite";
@@ -222,15 +223,31 @@ const styles = StyleSheet.create({
     background: { flex: 1 },
     headerContainer: { flex: 1, justifyContent: 'center', paddingHorizontal: 35 },
     header:{},
-    welcomeText: { fontSize: 16, color: "#125872", fontWeight: "bold", lineHeight: 20, fontFamily: "Poppins-Bold", letterSpacing: "-1", marginBottom: -5},
-    cityText: { fontSize: 42, color: "#125872", fontWeight: "900", lineHeight: 45, fontFamily: "Poppins-Bold", letterSpacing: "-2", paddingTop: 5, zIndex: 10},
-    subText: { fontSize: 13, color: "#125872", fontStyle: "italic", lineHeight: 12, fontFamily: "Poppins-Regular", letterSpacing: "-1", zIndex: 10, paddingTop: 5},
+    welcomeText: { fontSize: 16, color: "#125872", fontWeight: "bold", lineHeight: 20, fontFamily: "Poppins-Bold", letterSpacing: -1, marginBottom: -5},
+    cityText: { fontSize: 42, color: "#125872", fontWeight: "900", lineHeight: 45, fontFamily: "Poppins-Bold", letterSpacing: -2, paddingTop: 5, zIndex: 10},
+    subText: { fontSize: 13, color: "#125872", fontStyle: "italic", lineHeight: 12, fontFamily: "Poppins-Regular", letterSpacing: -1, zIndex: 10, paddingTop: 5},
     loginBox: { backgroundColor: "#226B85", borderTopLeftRadius: 50, padding: 35, paddingBottom: 0, width: '100%', alignSelf: 'flex-end' },
-    loginTitle: { color: "#fff", fontSize: 30, fontWeight: "900", lineHeight: 42, paddingBottom: 20, fontFamily: "Poppins-Bold", letterSpacing: "-1" },
+    loginTitle: { color: "#fff", fontSize: 30, fontWeight: "900", lineHeight: 42, paddingBottom: 20, fontFamily: "Poppins-Bold", letterSpacing: -1 },
     inputContainer: { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", borderRadius: 10, paddingHorizontal: 10, marginVertical: 15, width: "100%" },
     icon: { marginRight: 5 },
     eyeIcon: { paddingHorizontal: 4 },
-    input: { flex: 1, height: 40, fontSize: 14, color: "#125872", fontFamily: "Poppins-Regular" },
+    input: {
+        flex: 1,
+        height: 40,
+        fontSize: 14,
+        color: "#125872",
+        fontFamily: "Poppins-Regular",
+        paddingVertical: 8,
+        ...Platform.select({
+            android: {
+                textAlignVertical: 'center',
+                includeFontPadding: false,
+            },
+            ios: {
+                paddingVertical: 10,
+            },
+        }),
+    },
     loginButton:{ backgroundColor: "#125872", borderRadius: 12, paddingVertical: 15, width: "100%", alignItems: "center", marginTop: 25 },
     loginButtonText: { color: "#fff", fontSize: 16, fontWeight: "bold", fontFamily: "Poppins-Bold" },
     footerImage: { width: width, height: height * 0.20, resizeMode: "cover", alignSelf: 'center' }

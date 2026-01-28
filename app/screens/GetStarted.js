@@ -30,7 +30,7 @@ function GetStarted({ navigation }) {
                 {/* Next Button at the bottom */}
                 <TouchableOpacity 
                     style={styles.getStartedButton}
-                    onPress={() => navigation.navigate('LogIn')} 
+                    onPress={() => navigation.navigate('SelectRole')} 
                     >
                     <Text style={styles.getStartedButtonText}>Get Started</Text>
                 </TouchableOpacity>

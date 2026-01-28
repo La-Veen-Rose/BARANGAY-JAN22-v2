@@ -98,13 +98,13 @@ const FormInput = ({ label, required, onInputChange, fieldName, value, placehold
                     if (isContactField) {
                         onInputChange(fieldName, normalizeContact(val));
                     } else {
-                        onInputChange(fieldName, isNumericField ? val : val.toUpperCase());
+                        onInputChange(fieldName, val);
                     }
                 }}
                 value={displayValue}
                 keyboardType={isContactField ? 'numeric' : props.keyboardType}
                 maxLength={isContactField ? 12 : props.maxLength}
-                autoCapitalize={isNumericField ? 'none' : 'characters'}
+                autoCapitalize="none"
                 {...props}
             />
         </View>

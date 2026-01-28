@@ -148,9 +148,10 @@ const Section5 = ({ formData = {}, onInputChange = () => {} }) => {
                 placeholder="Enter clinical assessment and diagnosis..."
                 placeholderTextColor="#aaa"
                 value={formData.assessmentDiagnosis || ''}
-                onChangeText={(val) => onInputChange('assessmentDiagnosis', val.toUpperCase())}
+                onChangeText={(val) => onInputChange('assessmentDiagnosis', val)}
                 multiline={true}
                 numberOfLines={4}
+                autoCapitalize="none"
             />
 
             {/* Plan - NOW SINGLE SELECTION (Radio Behavior) */}
@@ -293,7 +294,8 @@ const Section5 = ({ formData = {}, onInputChange = () => {} }) => {
                 placeholder="Specify other vaccines"
                 placeholderTextColor="#aaa"
                 value={formData.activeVaccineOther || ''}
-                onChangeText={(val) => onInputChange('activeVaccineOther', val.toUpperCase())}
+                onChangeText={(val) => onInputChange('activeVaccineOther', val)}
+                autoCapitalize="none"
             />
 
             {/* Antibiotics - CHANGED TO TEXT INPUT */}
@@ -303,7 +305,8 @@ const Section5 = ({ formData = {}, onInputChange = () => {} }) => {
                 placeholder="Enter prescribed antibiotics and dosage (e.g., Amoxicillin 500mg TID)"
                 placeholderTextColor="#aaa"
                 value={formData.antibioticsText || ''} // New field to store text
-                onChangeText={(val) => onInputChange('antibioticsText', val.toUpperCase())}
+                onChangeText={(val) => onInputChange('antibioticsText', val)}
+                autoCapitalize="none"
             />
             {/* Removed the original <View style={section5Styles.groupContainer}>... checkboxes */}
 
@@ -314,7 +317,8 @@ const Section5 = ({ formData = {}, onInputChange = () => {} }) => {
                 placeholder="Enter medication and dosage"
                 placeholderTextColor="#aaa"
                 value={formData.antiInflammatoryMedication || ''}
-                onChangeText={(val) => onInputChange('antiInflammatoryMedication', val.toUpperCase())}
+                onChangeText={(val) => onInputChange('antiInflammatoryMedication', val)}
+                autoCapitalize="none"
             />
 
             {/* Physician */}
@@ -324,7 +328,8 @@ const Section5 = ({ formData = {}, onInputChange = () => {} }) => {
                 placeholder="Enter physician's name"
                 placeholderTextColor="#aaa"
                 value={formData.physicianName || ''}
-                onChangeText={(val) => onInputChange('physicianName', val.toUpperCase())}
+                onChangeText={(val) => onInputChange('physicianName', val)}
+                autoCapitalize="none"
             />
             <Text style={section5Styles.noteText}>
                 Digital signature will be captured upon submission (Not implemented in this UI)

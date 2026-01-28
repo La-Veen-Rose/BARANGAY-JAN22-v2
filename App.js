@@ -23,7 +23,6 @@ import * as NavigationBar from 'expo-navigation-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { navigationRef } from './app/navigation/RootNavigation';
-import { registerForPushNotificationsAsync, savePushTokenForCurrentUser } from './app/notifications/notificationService';
 
 // Global notification display behavior
 Notifications.setNotificationHandler({
@@ -53,6 +52,7 @@ import AnimalBiteReport from './app/screens/AnimalBiteReport';
 import PatientRecord from './app/screens/PatientRecord';
 import NavigationHeader from './app/screens/NavigationHeader';
 import RabEdAnnouncements from './app/screens/RabEdAnnouncements';
+import SelectRole from './app/screens/SelectRole';
 // --- End Screen Imports ---
 
 
@@ -83,11 +83,11 @@ function BottomTabs() {
                 <Ionicons 
                   name={iconName} 
                   size={26} 
-                  color={focused ? "#FFFFFF" : "#0F74A7"} 
+                  color={focused ? "#FFFFFF" : "#125872"} 
                 />
                 <Text style={[
                   styles.tabLabel,
-                  { color: focused ? "#FFFFFF" : "#0F74A7" }
+                  { color: focused ? "#FFFFFF" : "#125872" }
                 ]}>
                   {route.name}
                 </Text>
@@ -180,7 +180,8 @@ function AppStack() {
       {/* <Stack.Screen name="OnBoarding1" component={OnBoarding1} />
       <Stack.Screen name="OnBoarding2" component={OnBoarding2} />*/}
       <Stack.Screen name="GetStarted" component={GetStarted} />
-      <Stack.Screen name="LogIn" component={LogIn} />
+      {/* <Stack.Screen name="LogIn" component={LogIn} /> */}
+      <Stack.Screen name="SelectRole" component={SelectRole} />
       <Stack.Screen name="Main" component={BottomTabs} />
       {/* alias so existing calls to 'MainDashboard' succeed */}
       <Stack.Screen name="MainDashboard" component={BottomTabs} />
@@ -226,14 +227,6 @@ export default function App() {
     // Android navigation bar immersive mode
     setImmersiveMode();
 
-    // Register for push notifications and store token in Appwrite
-    (async () => {
-      const expoToken = await registerForPushNotificationsAsync();
-      if (expoToken) {
-        await savePushTokenForCurrentUser(expoToken);
-      }
-    })();
-
     // Listen for notification taps to navigate appropriately
     const responseSubscription = Notifications.addNotificationResponseReceivedListener(
       (response) => {
@@ -248,6 +241,18 @@ export default function App() {
           navigationRef.navigate('NavigationHeader', {
             screenName: 'SUBMITTED_CASES',
             focusStatus: 'Verified',
+            recordId: data.recordId || null,
+          });
+        } else if (type === 'patient_status_changed') {
+          navigationRef.navigate('NavigationHeader', {
+            screenName: 'SUBMITTED_CASES',
+            focusStatus: data.focusStatus || 'Pending',
+            recordId: data.recordId || null,
+          });
+        } else if (type === 'new_patient_record') {
+          navigationRef.navigate('NavigationHeader', {
+            screenName: 'SUBMITTED_CASES',
+            focusStatus: 'Pending',
             recordId: data.recordId || null,
           });
         } else if (type === 'rabed_announcement') {
@@ -288,9 +293,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 16,
-    paddingHorizontal: 40,
+    paddingHorizontal: 20,
     borderRadius: 15,
-    minWidth: 170,
+    minWidth: 150,
     height: 65,
     gap: 5,
     marginHorizontal: 20,
@@ -301,7 +306,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   tabButtonActive: {
-    backgroundColor: '#0F74A7',
+    backgroundColor: '#125872',
   },
   tabButtonInactive: {
     backgroundColor: '#FFFFFF',

@@ -16,8 +16,10 @@ from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { databases, storage, appwriteConfig } from './appwriteConfig';
 import CityHealthLogo from '../assets/CITY HEALTH OFFICE LOGO.png';
+import { printMockPatientRecordPdf } from './patientRecordPdfService';
+import { getCurrentStaffProfile } from './staffProfileService';
 
-function PatientRecordContent({ patient }) {
+function PatientRecordContent({ patient, onOpenPrescription }) {
     const [patientData, setPatientData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -25,15 +27,52 @@ function PatientRecordContent({ patient }) {
     const [selectedImage, setSelectedImage] = useState(null);
     const [showQRModal, setShowQRModal] = useState(false);
     const [showPrescriptionTemplate, setShowPrescriptionTemplate] = useState(false);
-    const documentId = patient?.id;
+    const [staffRole, setStaffRole] = useState(null);
+    const documentId = patient?.id || patient?.$id;
 
-    const handleGenerateQR = () => {
-        Alert.alert('Feature Coming Soon', 'Generate QR feature will be implemented soon');
+    const handlePrintRecord = async () => {
+        try {
+            const result = await printMockPatientRecordPdf();
+            if (!result?.uri) {
+                Alert.alert('Download Record', 'PDF generation failed.');
+                return;
+            }
+
+            if (result.savedTo === 'device') {
+                Alert.alert('Download Record', `PDF saved to the folder you selected as: ${result.filename}`);
+            } else {
+                Alert.alert(
+                    'Download Record',
+                    `PDF created as: ${result.filename}\nUse the share dialog to save/download it to your Files/Downloads.`
+                );
+            }
+        } catch (e) {
+            console.error('Print record error:', e);
+            Alert.alert('Download Record', e?.message || 'Failed to generate PDF.');
+        }
     };
 
-    const handlePrintRecord = () => {
-        Alert.alert('Feature Coming Soon', 'Print PDF feature will be implemented soon');
+    const handleDownloadRecord = () => {
+        return handlePrintRecord();
     };
+
+    useEffect(() => {
+        let mounted = true;
+
+        (async () => {
+            try {
+                const staff = await getCurrentStaffProfile();
+                if (mounted) setStaffRole(staff?.role || null);
+            } catch (e) {
+                console.warn('Failed to resolve staff role:', e?.message || e);
+                if (mounted) setStaffRole(null);
+            }
+        })();
+
+        return () => {
+            mounted = false;
+        };
+    }, []);
 
     useEffect(() => {
         if (!documentId) {
@@ -112,8 +151,11 @@ function PatientRecordContent({ patient }) {
                     physician: doc.physicianName,
 
                     // Generated prescription asset (stored in dedicated Appwrite bucket)
-                    // Field name in Appwrite schema: prescriptionField (string)
-                    prescriptionField: doc.prescriptionField || null,
+                    // Field name in Appwrite schema: prescription_images (string fileId)
+                    // Normalize defensively in case older records used array.
+                    prescriptionImageId: typeof doc.prescription_images === 'string'
+                        ? doc.prescription_images
+                        : (Array.isArray(doc.prescription_images) ? (doc.prescription_images[0] || '') : ''),
 
                     // Wound Images
                     woundImages: doc.woundImages || [],
@@ -273,7 +315,16 @@ function PatientRecordContent({ patient }) {
         );
     }
 
-    const isVerified = (patientData.status || '').toLowerCase() === 'verified';
+    const statusNormalized = String(patientData.status || '').toLowerCase();
+    const isVerified = statusNormalized === 'verified';
+    const isPending = statusNormalized === 'pending';
+    const isPhysician = staffRole === 'physician';
+
+    const shouldOpenPrescriptionScreen = isPhysician && isPending;
+
+    // Physicians should be able to see treatment details even for pending records.
+    const canSeeTreatmentDetails = isVerified || isPhysician;
+    const showActionButtons = isVerified || isPhysician;
 
     const getStatusColor = (status) => {
         switch (status) {
@@ -347,7 +398,7 @@ function PatientRecordContent({ patient }) {
         {/* MAIN CONTENT - SCROLLABLE */}
         <ScrollView
                 style={styles.mainContent}
-                contentContainerStyle={[isVerified && { paddingBottom: 100 }]}
+            contentContainerStyle={[showActionButtons && { paddingBottom: 100 }]}
                 showsVerticalScrollIndicator={false}
                 scrollEventThrottle={16}>
             
@@ -583,7 +634,7 @@ function PatientRecordContent({ patient }) {
                 </View>
                 <View style={styles.divider} />
 
-                {isVerified ? (
+                {canSeeTreatmentDetails ? (
                     <>
                         <View style={styles.infoRow}>
                             <View style={styles.infoColumn}>
@@ -612,7 +663,7 @@ function PatientRecordContent({ patient }) {
             </View>
 
             {/* TREATMENT PLAN & VACCINES */}
-            {isVerified && (
+            {canSeeTreatmentDetails && (
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>TREATMENT PLAN & VACCINES</Text>
                     <View style={styles.infoContainer}>
@@ -700,37 +751,48 @@ function PatientRecordContent({ patient }) {
             </View>
         </ScrollView>
 
-        {/* ========== VERIFIED ACTION BUTTONS ========== */}
-        {isVerified && (
+        {/* ========== ACTION BUTTONS ========== */}
+        {showActionButtons && (
             <View style={styles.actionButtonsContainer}>
-                <TouchableOpacity 
+                <TouchableOpacity
                     style={styles.actionButton}
-                    onPress={handleGenerateQR}
-                >
-                    <Ionicons name="qr-code" size={20} color="#226B85" />
-                    <Text style={styles.actionButtonText}>Generate QR</Text>
-                </TouchableOpacity>
+                    onPress={() => {
+                        if (shouldOpenPrescriptionScreen) {
+                            if (typeof onOpenPrescription === 'function') {
+                                onOpenPrescription({
+                                    patient,
+                                    recordId: documentId,
+                                    mode: 'edit',
+                                });
+                                return;
+                            }
 
-                <TouchableOpacity 
-                    style={styles.actionButton}
-                    onPress={handlePrintRecord}
-                >
-                    <Ionicons name="print" size={20} color="#226B85" />
-                    <Text style={styles.actionButtonText}>Print Record</Text>
-                </TouchableOpacity>
+                            Alert.alert('Prescription', 'Navigation is not available.');
+                            return;
+                        }
 
-                <TouchableOpacity 
-                    style={styles.actionButton}
-                    onPress={() => setShowPrescriptionTemplate(true)}
+                        setShowPrescriptionTemplate(true);
+                    }}
                 >
-                    <Ionicons name="document-text" size={20} color="#226B85" />
+                    <Ionicons name="document-text-outline" size={20} color="#226B85" />
                     <Text style={styles.actionButtonText}>Prescription</Text>
                 </TouchableOpacity>
+
+                {/* For physicians on pending records, only show Prescription as requested */}
+                {!shouldOpenPrescriptionScreen && (
+                    <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={handleDownloadRecord}
+                    >
+                        <Ionicons name="print" size={20} color="#226B85" />
+                        <Text style={styles.actionButtonText}>Download Record</Text>
+                    </TouchableOpacity>
+                )}
             </View>
         )}
 
-        {/* Prescription template modal for patient photo or stored image */}
-        {isVerified && (
+        {/* Prescription modal (shows stored prescription image only) */}
+        {showActionButtons && !shouldOpenPrescriptionScreen && (
             <Modal
                 visible={showPrescriptionTemplate}
                 transparent
@@ -739,91 +801,32 @@ function PatientRecordContent({ patient }) {
             >
                 <View style={styles.rxOverlay}>
                     <View style={styles.rxContainer}>
-                        {patientData.prescriptionField ? (
+                        {patientData?.prescriptionImageId ? (
                             <ScrollView
                                 style={styles.rxScroll}
                                 contentContainerStyle={styles.rxScrollContent}
                                 showsVerticalScrollIndicator={false}
                             >
                                 <Image
-                                    source={{ uri: getPrescriptionUrl(patientData.prescriptionField) }}
+                                    source={{ uri: getPrescriptionUrl(patientData.prescriptionImageId) }}
                                     style={styles.rxImage}
                                     resizeMode="contain"
                                 />
                                 <Text style={styles.rxHintText}>
-                                    You may show this screen to the patient so they can take a photo of the official prescription image generated by the City Health Office.
+                                    This is the official prescription image sent by the City Health Office.
                                 </Text>
                             </ScrollView>
                         ) : (
-                            <>
-                                <View style={styles.rxHeaderBar}>
-                                    <View style={styles.rxHeaderLeft}>
-                                        <Image source={CityHealthLogo} style={styles.rxLogo} resizeMode="contain" />
-                                    </View>
-                                    <View style={styles.rxHeaderCenter}>
-                                        <Text style={styles.rxHeaderTitle}>CITY HEALTH OFFICE</Text>
-                                        <Text style={styles.rxHeaderSubtitle}>ANIMAL BITE TREATMENT CENTER</Text>
-                                        <Text style={styles.rxHeaderSubline}>City Hall Compound, Tagum City</Text>
-                                    </View>
-                                </View>
-
-                                <ScrollView
-                                    style={styles.rxScroll}
-                                    contentContainerStyle={styles.rxScrollContent}
-                                    showsVerticalScrollIndicator={false}
+                            <View style={[styles.rxScroll, { paddingHorizontal: 20, paddingVertical: 22 }]}
+                            >
+                                <Text style={[styles.rxSectionTitle, { textAlign: 'center', marginBottom: 8 }]}>No Prescription Yet</Text>
+                                <Text style={[styles.rxHintText, { marginTop: 0 }]}
                                 >
-                                    <View style={styles.rxRowBetween}>
-                                        <Text style={styles.rxLabel}>Name:</Text>
-                                        <Text style={styles.rxLine}>{patientData.name}</Text>
-                                    </View>
-                                    <View style={styles.rxRowBetween}>
-                                        <Text style={styles.rxLabel}>Address:</Text>
-                                        <Text style={styles.rxLine}>{patientData.address}</Text>
-                                    </View>
-                                    <View style={styles.rxRowBetween}>
-                                        <Text style={styles.rxLabel}>Age / Sex:</Text>
-                                        <Text style={styles.rxLine}>{patientData.age} / {patientData.sex}</Text>
-                                    </View>
-                                    <View style={styles.rxRowBetween}>
-                                        <Text style={styles.rxLabel}>Rx No.:</Text>
-                                        <Text style={styles.rxLine}>{patientData.submissionId}</Text>
-                                    </View>
-
-                                    <View style={styles.rxDivider} />
-
-                                    <View style={styles.rxSection}>
-                                        <Text style={styles.rxSectionTitle}>Exposure & Assessment</Text>
-                                        <Text style={styles.rxItem}><Text style={styles.rxItemLabel}>Category of Exposure: </Text>{patientData.categoryOfExposure || 'N/A'}</Text>
-                                        <Text style={styles.rxItem}><Text style={styles.rxItemLabel}>Assessment: </Text>{patientData.assessment || 'N/A'}</Text>
-                                    </View>
-
-                                    <View style={styles.rxSection}>
-                                        <Text style={styles.rxSectionTitle}>Vaccination Plan</Text>
-                                        <Text style={styles.rxItem}><Text style={styles.rxItemLabel}>Plan: </Text>{patientData.plan || 'N/A'}</Text>
-                                        <Text style={styles.rxItem}><Text style={styles.rxItemLabel}>Passive Vaccine: </Text>{patientData.passiveVaccine || 'N/A'}</Text>
-                                        <Text style={styles.rxItem}><Text style={styles.rxItemLabel}>No. of Units: </Text>{patientData.noOfUnits || 'N/A'}</Text>
-                                        <Text style={styles.rxItem}><Text style={styles.rxItemLabel}>Active Vaccine: </Text>{patientData.activeVaccine || 'N/A'}</Text>
-                                    </View>
-
-                                    <View style={styles.rxSection}>
-                                        <Text style={styles.rxSectionTitle}>Medications</Text>
-                                        <Text style={styles.rxItem}><Text style={styles.rxItemLabel}>Antibiotic: </Text>{patientData.antibiotic || 'N/A'}</Text>
-                                        <Text style={styles.rxItem}><Text style={styles.rxItemLabel}>Analgesic / Anti-inflammatory: </Text>{patientData.analgesic || 'N/A'}</Text>
-                                    </View>
-
-                                    <View style={styles.rxFooterBlock}>
-                                        <View style={styles.rxSignatureBlock}>
-                                            <Text style={styles.rxSignatureLine}>______________________________</Text>
-                                            <Text style={styles.rxSignatureName}>{patientData.physician || 'Physician'}</Text>
-                                            <Text style={styles.rxSignatureNote}>Digitally authorized prescription</Text>
-                                        </View>
-                                    </View>
-
-                                    <Text style={styles.rxHintText}>
-                                        You may show this screen to the patient so they can take a photo of the prescription for their reference.
-                                    </Text>
-                                </ScrollView>
-                            </>
+                                    {isPhysician
+                                        ? 'No prescription image is attached yet. Use the Prescription screen to generate and attach one.'
+                                        : 'The prescription image hasn’t been uploaded by the staff yet. Please check again later.'}
+                                </Text>
+                            </View>
                         )}
 
                         <TouchableOpacity

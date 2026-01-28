@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "313317558939",
+    "project_id": "mobile-raven-203fc",
+    "storage_bucket": "mobile-raven-203fc.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:313317558939:android:b71373dabeeac409ab143e",
+        "android_client_info": {
+          "package_name": "com.raven.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDf6g8R5umMvgEKzL98hNsp7MinszJgAhQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

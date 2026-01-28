@@ -12,8 +12,8 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import LogOut from "./LogOut";
-import { account, databases, appwriteConfig } from "./appwriteConfig";
-import { Query } from 'appwrite';
+import { account } from "./appwriteConfig";
+import { getCurrentStaffProfile, getStaffDisplayName } from './staffProfileService';
 
 import RavenLogo from "../assets/raven-logo-blue.svg";
 
@@ -34,37 +34,20 @@ function Sidebar({ closeSidebar, workerProfile: passedWorkerProfile }) {
       useNativeDriver: true,
     }).start();
 
-    // Fetch logged-in user and health worker data
-    const fetchHealthWorkerName = async () => {
+    // Fetch logged-in staff profile (BHW or Physician)
+    const fetchStaffName = async () => {
       try {
-        // Get currently logged-in user
-        const user = await account.get();
-        const userEmail = user.email;
-        
-        // Query HealthWorkers collection for this user by email
-        const response = await databases.listDocuments(
-          appwriteConfig.staffDatabaseId,
-          appwriteConfig.healthWorkersCollectionId,
-          [
-            Query.equal('email', userEmail)
-          ]
-        );
-
-        if (response.documents.length > 0) {
-          const profile = response.documents[0];
-          setWorkerProfile(profile);
-          const fullName = profile.fullName || "Health Worker";
-          setHealthWorkerName(fullName.toUpperCase());
-        } else {
-          setHealthWorkerName("HEALTH WORKER");
-        }
+        const { profile, role } = await getCurrentStaffProfile();
+        setWorkerProfile(profile);
+        const displayName = getStaffDisplayName(profile, role);
+        setHealthWorkerName(String(displayName || '').toUpperCase() || (role === 'physician' ? 'PHYSICIAN' : 'HEALTH WORKER'));
       } catch (error) {
-        console.error("Error fetching health worker name:", error);
-        setHealthWorkerName("HEALTH WORKER");
+        console.error("Error fetching staff name:", error);
+        setHealthWorkerName("USER");
       }
     };
 
-    fetchHealthWorkerName();
+    fetchStaffName();
   }, []);
 
   const panResponder = useRef(
@@ -190,7 +173,7 @@ function Sidebar({ closeSidebar, workerProfile: passedWorkerProfile }) {
         onCancel={() => setLogoutVisible(false)}
         onConfirm={() => {
           setLogoutVisible(false);
-          navigation.replace("LogIn");
+          navigation.replace("SelectRole");
         }}
       />
     </Animated.View>
@@ -232,8 +215,8 @@ const styles = StyleSheet.create({
     width: width * 0.80,
     backgroundColor: "#fff",
     paddingHorizontal: 18,
-    paddingTop: 30,
-    paddingBottom: 20,
+    paddingTop: 50,
+    paddingBottom: 10,
     borderTopRightRadius: 35,
     elevation: 1000,
     zIndex: 1000,
@@ -245,7 +228,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     color: PRIMARY,
-    marginTop: 8,
+    marginTop: 6,
     fontFamily: 'Poppins',
     lineHeight: 12,
     letterSpacing: -0.3,
@@ -254,7 +237,7 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     backgroundColor: "#d0d0d0",
-    marginVertical: 10,
+    marginVertical: 6,
   },
 
   welcomeText: {
@@ -270,7 +253,7 @@ const styles = StyleSheet.create({
     color: PRIMARY,
     fontFamily: 'Poppins',
     marginTop: 0,
-    marginBottom: 10,
+    marginBottom: 6,
     letterSpacing: -1,
   },
 
@@ -283,18 +266,18 @@ const styles = StyleSheet.create({
   },
 
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "500",
     color: "#333",
     fontFamily: 'Poppins',
-    marginBottom: 8,
+    marginBottom: 4,
   },
 
   choText: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '800',
     color: "#125872",
-    marginBottom: 12,
+    marginBottom: 8,
     marginTop: 0,
     letterSpacing: -0.7,
     fontFamily: 'Poppins',
@@ -304,20 +287,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: PRIMARY,
-    marginVertical: 3,
+    marginVertical: 2,
     letterSpacing: -0.4,
     fontFamily: 'Poppins',
   },
 
   contactBox: {
     backgroundColor: PRIMARY,
-    padding: 14,
+    padding: 12,
     borderRadius: 8,
   },
   contactRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    marginBottom: 10,
+    marginBottom: 6,
   },
   contactText: {
     color: "#fff",
@@ -339,17 +322,16 @@ const styles = StyleSheet.create({
   logout: {
     color: PRIMARY,
     fontWeight: "800",
-    marginTop: 5,
+    marginTop: 2,
     fontFamily: 'Poppins',
   },
 
   footerWrap: {
-    flex: 1,
-    justifyContent: "flex-end",
-    paddingBottom: 8,
+    marginTop: 50,
+    paddingBottom: 0,
   },
   footer: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "600",
     color: "#777",
     textAlign: "center",

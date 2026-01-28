@@ -57,9 +57,9 @@ const FormInput = ({ label, required, onInputChange, fieldName, value, placehold
                 ]}
                 placeholder={placeholder || `Enter ${label.toLowerCase()}`}
                 placeholderTextColor="#aaa"
-                onChangeText={(val) => onInputChange(fieldName, uppercase ? (val || '').toUpperCase() : val)}
-                value={uppercase && typeof value === 'string' ? value.toUpperCase() : value}
-                autoCapitalize={uppercase ? 'characters' : (props.autoCapitalize || 'none')}
+                onChangeText={(val) => onInputChange(fieldName, uppercase ? (val || '') : val)}
+                value={value}
+                autoCapitalize="none"
                 {...props}
             />
         </View>

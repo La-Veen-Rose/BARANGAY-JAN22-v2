@@ -2,13 +2,11 @@
 // Handles image validation, upload to Appwrite Storage, and lifecycle management
 
 import { storage, appwriteConfig, ID } from './appwriteConfig';
-import { Permission, Role } from 'appwrite';
 import * as FileSystem from 'expo-file-system/legacy';
 import NetInfo from '@react-native-community/netinfo';
-import {
-  APPWRITE_ENDPOINT,
-  APPWRITE_PROJECT_ID,
-} from '@env';
+
+const APPWRITE_ENDPOINT = process.env.EXPO_PUBLIC_APPWRITE_ENDPOINT;
+const APPWRITE_PROJECT_ID = process.env.EXPO_PUBLIC_APPWRITE_PROJECT_ID;
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB in bytes
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
@@ -78,7 +76,8 @@ const getMimeType = (extension) => {
 export const checkNetwork = async () => {
     try {
         const state = await NetInfo.fetch();
-        return state.isConnected && state.isInternetReachable;
+        // isInternetReachable can be null/undefined on some devices; treat that as "unknown" not "offline"
+        return Boolean(state.isConnected) && state.isInternetReachable !== false;
     } catch {
         return true; // Assume connected if check fails
     }

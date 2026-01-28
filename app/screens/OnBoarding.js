@@ -34,13 +34,13 @@ function OnBoarding({ navigation }) {
         animated: true,
         });
     } else {
-        navigation.replace("LogIn");
+        navigation.replace("SelectRole");
     }
     };
 
 
   const handleSkip = () => {
-    navigation.replace("LogIn");
+    navigation.replace("SelectRole");
   };
 
   const renderItem = ({ item }) => (

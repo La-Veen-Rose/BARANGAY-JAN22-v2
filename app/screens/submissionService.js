@@ -1,4 +1,5 @@
 import { databases, appwriteConfig, ID } from './appwriteConfig';
+import { Query } from 'appwrite';
 
 /**
  * Generate barangay code from barangay name
@@ -50,21 +51,22 @@ export const getSubmissionID = async (barangayName) => {
         const currentYear = new Date().getFullYear();
         const counterKey = `${barangayCode}-${currentYear}`;
 
-        // Try to get existing counter
+        // Try to get existing counter (query directly; avoids listing entire collection)
         try {
             const counters = await databases.listDocuments(
                 appwriteConfig.patientDatabaseId,
                 appwriteConfig.submissionCountersCollectionId,
-                []
+                [
+                    Query.equal('barangayCode', barangayCode),
+                    Query.equal('submissionYear', currentYear),
+                    Query.limit(1),
+                ]
             );
 
-            let counter = counters.documents.find(
-                doc => doc.barangayCode === barangayCode && doc.submissionYear === currentYear
-            );
+            const counter = counters.documents?.[0];
 
             if (counter) {
-                // Increment existing counter
-                const newCurrent = counter.current + 1;
+                const newCurrent = (Number(counter.current) || 0) + 1;
                 await databases.updateDocument(
                     appwriteConfig.patientDatabaseId,
                     appwriteConfig.submissionCountersCollectionId,
@@ -77,7 +79,7 @@ export const getSubmissionID = async (barangayName) => {
                 return submissionID;
             }
         } catch (e) {
-            console.log('No existing counters found, creating new one');
+            console.log('No existing counter found, creating new one');
         }
 
         // Create new counter starting at 1

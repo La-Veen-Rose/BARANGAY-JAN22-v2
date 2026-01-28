@@ -52,10 +52,11 @@ const FormInput = ({ label, required, onInputChange, fieldName, value, placehold
         style={inputStyle}
         placeholder={placeholder || `Enter ${label.toLowerCase()}`}
         placeholderTextColor="#aaa"
-        onChangeText={(val) => onInputChange(fieldName, val.toUpperCase())}
+        onChangeText={(val) => onInputChange(fieldName, val)}
         value={value}
         multiline={multiline}
         numberOfLines={multiline ? 4 : 1}
+        autoCapitalize="none"
         {...props}
       />
     </View>
