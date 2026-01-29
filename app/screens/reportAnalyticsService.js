@@ -1,5 +1,4 @@
-import { databases, appwriteConfig } from './appwriteConfig';
-import { Query } from 'appwrite';
+import { databases, appwriteConfig, Query } from './appwriteConfig';
 
 /**
  * Service for fetching and processing animal bite report analytics

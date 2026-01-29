@@ -13,8 +13,7 @@ import {
     Platform,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-icons";
-import { Query } from "appwrite";
-import { account, appwriteConfig, databases } from "./appwriteConfig";
+import { account, appwriteConfig, databases, Query } from "./appwriteConfig";
 import { registerForPushNotificationsAsync, savePushTokenForCurrentUser } from "../notifications/notificationService";
 import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold } from "@expo-google-fonts/poppins";
 

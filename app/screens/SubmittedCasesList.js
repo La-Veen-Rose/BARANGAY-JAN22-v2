@@ -9,8 +9,7 @@ import {
     Alert,
     Modal
 } from "react-native";
-import { databases, appwriteConfig, account } from './appwriteConfig';
-import { Query } from 'appwrite';
+import { databases, appwriteConfig, account, Query } from './appwriteConfig';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { getCurrentStaffProfile, STAFF_ROLE } from './staffProfileService';
@@ -257,7 +256,16 @@ function SubmittedCasesList({ navigation, route, onOpenPatientRecordContent }) {
 
         } catch (error) {
             console.error('Error fetching submitted cases:', error);
-            Alert.alert('Error', 'Failed to fetch submitted cases.');
+            
+            // Provide more specific error messages
+            let errorMessage = 'Failed to fetch submitted cases.';
+            if (error.message && error.message.includes('Staff profile not found')) {
+                errorMessage = 'Your staff profile is not properly configured. Please contact your administrator.';
+            } else if (error.message && error.message.includes('physicianAccountsCollectionId')) {
+                errorMessage = 'Configuration error: Missing physician accounts collection. Please check your setup.';
+            }
+            
+            Alert.alert('Error', errorMessage);
         } finally {
             setLoading(false);
         }

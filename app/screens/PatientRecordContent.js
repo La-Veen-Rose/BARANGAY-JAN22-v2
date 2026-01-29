@@ -14,7 +14,7 @@ import {
 } 
 from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { databases, storage, appwriteConfig } from './appwriteConfig';
+import { databases, storage, appwriteConfig, APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID } from './appwriteConfig';
 import CityHealthLogo from '../assets/CITY HEALTH OFFICE LOGO.png';
 import { printMockPatientRecordPdf } from './patientRecordPdfService';
 import { getCurrentStaffProfile } from './staffProfileService';
@@ -239,10 +239,21 @@ function PatientRecordContent({ patient, onOpenPrescription }) {
     };
 
     const getPrescriptionUrl = (fileId) => {
-        if (!fileId) return null;
+        if (!fileId) {
+            console.warn('getPrescriptionUrl: No fileId provided');
+            return null;
+        }
         try {
             const bucketId = appwriteConfig.prescriptionBucketId || appwriteConfig.imagesBucketId;
-            return storage.getFileView(bucketId, fileId).toString();
+            if (!bucketId) {
+                console.error('getPrescriptionUrl: No bucket ID configured');
+                return null;
+            }
+            
+            // Use the REST API directly for file view
+            const url = `${APPWRITE_ENDPOINT}/storage/buckets/${bucketId}/files/${fileId}/view?project=${APPWRITE_PROJECT_ID}`;
+            console.log('Prescription URL:', url);
+            return url;
         } catch (error) {
             console.error('Error generating prescription image URL:', error);
             return null;
@@ -397,10 +408,13 @@ function PatientRecordContent({ patient, onOpenPrescription }) {
 
         {/* MAIN CONTENT - SCROLLABLE */}
         <ScrollView
-                style={styles.mainContent}
-            contentContainerStyle={[showActionButtons && { paddingBottom: 100 }]}
-                showsVerticalScrollIndicator={false}
-                scrollEventThrottle={16}>
+            style={styles.mainContent}
+            contentContainerStyle={[
+                styles.mainContentContent,
+                showActionButtons && { paddingBottom: 100 },
+            ]}
+            showsVerticalScrollIndicator={false}
+            scrollEventThrottle={16}>
             
                 {/* PATIENT INFO */}
                 <View style={styles.section}>
@@ -891,13 +905,16 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins',
     textTransform: 'capitalize',
   },
-  mainContent: {
-    flex: 1,
-    backgroundColor: 'transparent',
-    paddingHorizontal: 20,
-    paddingTop: -20,
-    paddingBottom: 20,
-  },
+    mainContent: {
+        flex: 1,
+        backgroundColor: 'transparent',
+        paddingHorizontal: 20,
+        paddingBottom: 20,
+        marginTop: -12,
+    },
+    mainContentContent: {
+        paddingTop: 4,
+    },
   section: {
     marginBottom: 24,
   },

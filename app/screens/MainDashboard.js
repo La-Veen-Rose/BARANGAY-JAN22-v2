@@ -15,8 +15,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 
 // --- Appwrite Imports ---
-import { databases, appwriteConfig, account } from './appwriteConfig';
-import { Query } from 'appwrite';
+import { databases, appwriteConfig, account, Query } from './appwriteConfig';
 import { fetchAnimalBiteReportData } from './reportAnalyticsService';
 import { getCurrentStaffProfile, getStaffHeaderLocation, STAFF_ROLE } from './staffProfileService';
 

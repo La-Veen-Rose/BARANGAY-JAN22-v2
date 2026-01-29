@@ -1,8 +1,26 @@
-// Appwrite Cloud Function: notify the BHW who submitted a record when its status changes
+// Appwrite Cloud Function: notify the submitting BHW when a prescription is added to a patient record
 // Trigger: databases.*.collections.*.documents.*.update (patientRecords collection)
 // Runtime: Node 18+
 
-import * as sdk from 'node-appwrite';
+const sdk = require('node-appwrite');
+
+const fetchJsonWithTimeout = async (url, options, timeoutMs) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    const text = await response.text();
+    let json;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      json = { raw: text };
+    }
+    return { ok: response.ok, status: response.status, json };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
 
 const pickEnv = (...keys) => {
   for (const key of keys) {
@@ -24,22 +42,21 @@ const normalizeEndpoint = (raw) => {
   return endpoint;
 };
 
-const normalizeStatus = (value) => {
-  if (!value) return null;
-  const s = String(value).trim().toLowerCase();
-  if (s === 'verified') return 'Verified';
-  if (s === 'terminated') return 'Terminated';
-  if (s === 'pending') return 'Pending';
-  return null;
+const firstString = (val) => {
+  if (!val) return '';
+  if (typeof val === 'string') return val.trim();
+  if (Array.isArray(val)) {
+    for (const v of val) {
+      if (typeof v === 'string' && v.trim()) return v.trim();
+    }
+  }
+  return '';
 };
 
 const collectTokens = (doc) => {
   const tokens = [];
   if (!doc) return tokens;
-
-  if (typeof doc.expoPushToken === 'string' && doc.expoPushToken) {
-    tokens.push(doc.expoPushToken);
-  }
+  if (typeof doc.expoPushToken === 'string' && doc.expoPushToken) tokens.push(doc.expoPushToken);
   if (Array.isArray(doc.expoPushToken)) {
     for (const t of doc.expoPushToken) {
       if (typeof t === 'string' && t) tokens.push(t);
@@ -50,29 +67,10 @@ const collectTokens = (doc) => {
       if (typeof t === 'string' && t) tokens.push(t);
     }
   }
-
   return [...new Set(tokens)];
 };
 
-const fetchJsonWithTimeout = async (url, options, timeoutMs) => {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(url, { ...options, signal: controller.signal });
-    const text = await response.text();
-    let json;
-    try {
-      json = text ? JSON.parse(text) : null;
-    } catch {
-      json = { raw: text };
-    }
-    return { ok: response.ok, status: response.status, json };
-  } finally {
-    clearTimeout(timeoutId);
-  }
-};
-
-export default async ({ req, res, log, error }) => {
+module.exports = async ({ req, res, log, error }) => {
   try {
     const endpointPick = pickEnv(
       'APPWRITE_FUNCTION_ENDPOINT',
@@ -123,25 +121,20 @@ export default async ({ req, res, log, error }) => {
 
     const databases = new sdk.Databases(client);
 
-    const payload = JSON.parse(process.env.APPWRITE_FUNCTION_EVENT_DATA || '{}');
     const startedAt = Date.now();
+
+    const payload = JSON.parse(process.env.APPWRITE_FUNCTION_EVENT_DATA || '{}');
     const previous = payload.$previous || {};
 
-    const documentId = payload.$id;
-    const newStatus = normalizeStatus(payload.status);
-    const oldStatus = normalizeStatus(previous.status);
+    const newFileId = firstString(payload.prescription_images);
+    const prevFileId = firstString(previous.prescription_images);
 
-    // Only act on transitions to Verified/Terminated
-    if (!newStatus || (newStatus !== 'Verified' && newStatus !== 'Terminated')) {
-      return res.json({ message: 'Status not Verified/Terminated; skipping.' });
+    // Only act when a prescription file is newly added
+    if (!newFileId) {
+      return res.json({ message: 'No prescription file on record; skipping.' });
     }
-    if (oldStatus === newStatus) {
-      return res.json({ message: 'Status unchanged; skipping.' });
-    }
-
-    const recordedByUserID = payload.recordedByUserID;
-    if (!recordedByUserID) {
-      return res.json({ message: 'Missing recordedByUserID; cannot target BHW; skipping.' });
+    if (newFileId === prevFileId) {
+      return res.json({ message: 'Prescription unchanged; skipping.' });
     }
 
     const staffDatabaseId = process.env.STAFF_DATABASE_ID;
@@ -151,14 +144,36 @@ export default async ({ req, res, log, error }) => {
       return res.json({ message: 'Missing staff database or collection id; skipping.' });
     }
 
-    const workerRes = await databases.listDocuments(staffDatabaseId, healthWorkersCollectionId, [
-      sdk.Query.equal('auth_user_id', recordedByUserID),
-      sdk.Query.limit(1),
-    ]);
+    const recordedByUserID = payload.recordedByUserID;
+    const recordedByHWID = payload.recordedByHWID;
 
-    const workerDoc = workerRes.documents?.[0];
+    let workerDoc = null;
+
+    // Primary lookup: auth_user_id
+    if (recordedByUserID) {
+      const resByAuth = await databases.listDocuments(
+        staffDatabaseId,
+        healthWorkersCollectionId,
+        [sdk.Query.equal('auth_user_id', recordedByUserID), sdk.Query.limit(1)]
+      );
+      workerDoc = resByAuth.documents?.[0] || null;
+    }
+
+    // Fallback: healthWorkerID
+    if (!workerDoc && recordedByHWID) {
+      const resByHW = await databases.listDocuments(
+        staffDatabaseId,
+        healthWorkersCollectionId,
+        [sdk.Query.equal('healthWorkerID', recordedByHWID), sdk.Query.limit(1)]
+      );
+      workerDoc = resByHW.documents?.[0] || null;
+    }
+
+    if (!workerDoc) {
+      return res.json({ message: 'Submitting BHW profile not found; skipping.' });
+    }
+
     const tokens = collectTokens(workerDoc);
-
     if (!tokens.length) {
       return res.json({ message: 'No Expo push tokens found for submitting BHW.' });
     }
@@ -166,20 +181,10 @@ export default async ({ req, res, log, error }) => {
     const submissionID = payload.submissionID || '';
     const patientName = [payload.lastName, payload.firstName].filter(Boolean).join(', ');
 
-    let title;
-    let body;
-    if (newStatus === 'Verified') {
-      title = 'Record Verified';
-      body = submissionID
-        ? `Submission ${submissionID} has been verified.`
-        : 'A submitted patient record has been verified.';
-    } else {
-      title = 'Record Terminated';
-      const reason = payload.terminateReason || payload.terminationReason || '';
-      body = submissionID
-        ? `Submission ${submissionID} was terminated.${reason ? ' Reason: ' + reason : ''}`
-        : `A submitted patient record was terminated.${reason ? ' Reason: ' + reason : ''}`;
-    }
+    const title = 'Prescription is ready';
+    const body = submissionID
+      ? `Prescription added for ${submissionID}`
+      : 'A prescription has been added to your submitted record.';
 
     const expoMessages = tokens.map((token) => ({
       to: token,
@@ -187,11 +192,11 @@ export default async ({ req, res, log, error }) => {
       title,
       body,
       data: {
-        type: 'patient_status_changed',
-        recordId: documentId,
-        focusStatus: newStatus,
+        type: 'prescription_added',
+        recordId: payload.$id,
         submissionID,
         patientName,
+        prescriptionFileId: newFileId,
       },
     }));
 
@@ -205,10 +210,13 @@ export default async ({ req, res, log, error }) => {
       20000
     );
 
+    log('Expo response', { httpStatus, ok, result: json });
+
     if (!ok) {
       return res.json({ error: 'Expo push API returned non-2xx.', httpStatus, result: json }, 502);
     }
 
+    log('Push complete', { sent: expoMessages.length, durationMs: Date.now() - startedAt });
     return res.json({ sent: expoMessages.length, result: json, durationMs: Date.now() - startedAt });
   } catch (err) {
     error(err);

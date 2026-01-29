@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
     ImageBackground,
     StyleSheet,
@@ -23,6 +23,9 @@ import * as NavigationBar from 'expo-navigation-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { navigationRef } from './app/navigation/RootNavigation';
+import { registerForPushNotificationsAsync, savePushTokenForCurrentUser } from './app/notifications/notificationService';
+
+console.log('APP_BOOT: App.js evaluated');
 
 // Global notification display behavior
 Notifications.setNotificationHandler({
@@ -203,7 +206,74 @@ function AppStack() {
 // 3. MAIN APP COMPONENT (Immersive Mode Logic)
 // ====================================================================
 export default function App() {
+  const [bannerNotification, setBannerNotification] = useState(null);
+  const notificationHideTimer = useRef(null);
+
+  const clearBannerNotification = useCallback(() => {
+    if (notificationHideTimer.current) {
+      clearTimeout(notificationHideTimer.current);
+      notificationHideTimer.current = null;
+    }
+    setBannerNotification(null);
+  }, []);
+
+  const navigateFromNotificationData = useCallback((data) => {
+    if (!navigationRef.isReady()) {
+      return;
+    }
+
+    const type = data?.type;
+
+    if (type === 'patient_verified') {
+      navigationRef.navigate('NavigationHeader', {
+        screenName: 'SUBMITTED_CASES',
+        focusStatus: 'Verified',
+        recordId: data.recordId || null,
+      });
+    } else if (type === 'patient_status_changed') {
+      navigationRef.navigate('NavigationHeader', {
+        screenName: 'SUBMITTED_CASES',
+        focusStatus: data.focusStatus || 'Pending',
+        recordId: data.recordId || null,
+      });
+    } else if (type === 'new_patient_record') {
+      navigationRef.navigate('NavigationHeader', {
+        screenName: 'SUBMITTED_CASES',
+        focusStatus: 'Pending',
+        recordId: data.recordId || null,
+      });
+    } else if (type === 'prescription_added') {
+      navigationRef.navigate('NavigationHeader', {
+        screenName: 'SUBMITTED_CASES',
+        focusStatus: 'Verified',
+        recordId: data.recordId || null,
+      });
+    } else if (type === 'rabed_announcement') {
+      navigationRef.navigate('RabEdAnnouncements');
+    }
+  }, []);
+
+  const handleBannerPress = useCallback(() => {
+    if (!bannerNotification) {
+      return;
+    }
+    navigateFromNotificationData(bannerNotification.data || {});
+    clearBannerNotification();
+  }, [bannerNotification, navigateFromNotificationData, clearBannerNotification]);
+
   useEffect(() => {
+    const setupPushNotifications = async () => {
+      try {
+        const token = await registerForPushNotificationsAsync();
+        if (token) {
+          await savePushTokenForCurrentUser(token);
+          console.log('Push token registered and saved:', token);
+        }
+      } catch (err) {
+        console.error('Push notification setup error (may be guest):', err);
+      }
+    };
+
     const setImmersiveMode = async () => {
       if (Platform.OS === 'android') {
         try {
@@ -227,44 +297,53 @@ export default function App() {
     // Android navigation bar immersive mode
     setImmersiveMode();
 
+    // Register and save push token
+    setupPushNotifications();
+
     // Listen for notification taps to navigate appropriately
     const responseSubscription = Notifications.addNotificationResponseReceivedListener(
       (response) => {
         const data = response?.notification?.request?.content?.data || {};
-        const type = data.type;
-
-        if (!navigationRef.isReady()) {
-          return;
-        }
-
-        if (type === 'patient_verified') {
-          navigationRef.navigate('NavigationHeader', {
-            screenName: 'SUBMITTED_CASES',
-            focusStatus: 'Verified',
-            recordId: data.recordId || null,
-          });
-        } else if (type === 'patient_status_changed') {
-          navigationRef.navigate('NavigationHeader', {
-            screenName: 'SUBMITTED_CASES',
-            focusStatus: data.focusStatus || 'Pending',
-            recordId: data.recordId || null,
-          });
-        } else if (type === 'new_patient_record') {
-          navigationRef.navigate('NavigationHeader', {
-            screenName: 'SUBMITTED_CASES',
-            focusStatus: 'Pending',
-            recordId: data.recordId || null,
-          });
-        } else if (type === 'rabed_announcement') {
-          navigationRef.navigate('RabEdAnnouncements');
-        }
+        navigateFromNotificationData(data);
+        clearBannerNotification();
       }
     );
 
+    // Show in-app banner when a notification arrives in foreground
+    const receivedSubscription = Notifications.addNotificationReceivedListener((notification) => {
+      const content = notification?.request?.content || {};
+      const data = content.data || {};
+      const nextBanner = {
+        id: notification?.request?.identifier || String(Date.now()),
+        title: content.title || 'Notification',
+        body: content.body || '',
+        data,
+      };
+
+      setBannerNotification(nextBanner);
+
+      if (notificationHideTimer.current) {
+        clearTimeout(notificationHideTimer.current);
+      }
+
+      notificationHideTimer.current = setTimeout(() => {
+        setBannerNotification((current) => {
+          if (!current) return null;
+          if (current.id === nextBanner.id) {
+            return null;
+          }
+          return current;
+        });
+        notificationHideTimer.current = null;
+      }, 6000);
+    });
+
     return () => {
       responseSubscription?.remove();
+      receivedSubscription?.remove();
+      clearBannerNotification();
     };
-  }, []);
+  }, [clearBannerNotification, navigateFromNotificationData]);
 
   return (
   <>
@@ -275,6 +354,39 @@ export default function App() {
       <NavigationContainer ref={navigationRef}>
         <AppStack />
       </NavigationContainer>
+
+      {bannerNotification ? (
+        <View style={styles.notificationWrapper} pointerEvents="box-none">
+          <TouchableOpacity
+            activeOpacity={0.88}
+            onPress={handleBannerPress}
+            style={styles.notificationBanner}
+          >
+            <View style={styles.notificationIndicator} />
+            <View style={styles.notificationTextContainer}>
+              <Text style={styles.notificationTitle}>{bannerNotification.title}</Text>
+              {bannerNotification.body ? (
+                <Text
+                  style={styles.notificationBody}
+                  numberOfLines={2}
+                >
+                  {bannerNotification.body}
+                </Text>
+              ) : null}
+            </View>
+            <TouchableOpacity
+              onPress={(event) => {
+                event.stopPropagation?.();
+                clearBannerNotification();
+              }}
+              style={styles.notificationCloseButton}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            >
+              <Ionicons name="close" size={18} color="#FFFFFF" />
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </View>
+      ) : null}
     </SafeAreaProvider>
   </>
   );
@@ -316,5 +428,51 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
     fontWeight: '700',
     marginTop: 0,
+  },
+  notificationWrapper: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+  },
+  notificationBanner: {
+    marginTop: Platform.OS === 'android' ? 48 : 32,
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0E5F7A',
+    borderRadius: 18,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 7,
+  },
+  notificationIndicator: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#1ED760',
+    marginRight: 12,
+  },
+  notificationTextContainer: {
+    flex: 1,
+  },
+  notificationTitle: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
+    marginBottom: 2,
+  },
+  notificationBody: {
+    color: '#E1F4FB',
+    fontSize: 13,
+  },
+  notificationCloseButton: {
+    marginLeft: 12,
   },
 });

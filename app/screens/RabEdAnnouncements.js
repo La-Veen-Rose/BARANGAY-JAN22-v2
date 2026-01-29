@@ -13,8 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
 import { RefreshControl } from 'react-native';
 
-import { databases, appwriteConfig, default as appwriteClient } from './appwriteConfig';
-import { Query } from 'appwrite';
+import { databases, appwriteConfig, default as appwriteClient, Query } from './appwriteConfig';
 
 function RabEdAnnouncements({ navigation }) {
   const [posts, setPosts] = useState([]);

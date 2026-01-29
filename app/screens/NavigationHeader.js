@@ -10,7 +10,6 @@ import { Ionicons } from '@expo/vector-icons';
 
 import SubmittedCasesList from './SubmittedCasesList';
 import PatientRecordContent from './PatientRecordContent';
-import Prescription from './Prescription';
 
 function NavigationHeader({ navigation, route }) {
   // If route has patient data, start with patient record view
@@ -82,13 +81,42 @@ function NavigationHeader({ navigation, route }) {
             }}
           />
         );
-      case 'PRESCRIPTION':
-        return (
-          <Prescription
-            navigation={prescriptionNavigation}
-            route={prescriptionRoute}
-          />
-        );
+      case 'PRESCRIPTION': {
+        // Lazy-load to avoid crashing the app at startup if Prescription (or its deps)
+        // throws during module evaluation.
+        try {
+          // eslint-disable-next-line global-require
+          const mod = require('./Prescription');
+          const Prescription = mod?.default ?? mod;
+          if (!Prescription) {
+            throw new Error('Prescription module loaded but returned empty exports.');
+          }
+          return (
+            <Prescription
+              navigation={prescriptionNavigation}
+              route={prescriptionRoute}
+            />
+          );
+        } catch (e) {
+          console.error('PRESCRIPTION_SCREEN_LOAD_FAILED', e);
+          return (
+            <View style={{ flex: 1, backgroundColor: '#FFFFFF', padding: 16 }}>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827' }}>
+                Prescription screen failed to load
+              </Text>
+              <Text style={{ marginTop: 10, color: '#374151' }}>
+                {String(e?.message || e)}
+              </Text>
+              <TouchableOpacity
+                style={{ marginTop: 16, paddingVertical: 12, paddingHorizontal: 14, backgroundColor: '#125872', borderRadius: 10, alignSelf: 'flex-start' }}
+                onPress={() => setActiveScreen('PATIENT_RECORD')}
+              >
+                <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>Go back</Text>
+              </TouchableOpacity>
+            </View>
+          );
+        }
+      }
       default:
         return (
           <SubmittedCasesList

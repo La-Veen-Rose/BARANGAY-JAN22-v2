@@ -1,8 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
-import { account, databases, appwriteConfig } from '../screens/appwriteConfig';
-import { Query } from 'appwrite';
+import { account, databases, appwriteConfig, Query } from '../screens/appwriteConfig';
 
 // Ask for permissions and get Expo push token
 export async function registerForPushNotificationsAsync() {
@@ -105,13 +104,26 @@ export async function savePushTokenForCurrentUser(expoPushToken) {
         return;
       }
 
+      let physicianDoc = null;
+
+      // Try lookup by auth_user_id first
       const physicianRes = await databases.listDocuments(
         appwriteConfig.staffDatabaseId,
         appwriteConfig.physicianAccountsCollectionId,
         [Query.equal('auth_user_id', user.$id)]
       );
+      physicianDoc = physicianRes.documents && physicianRes.documents[0];
 
-      const physicianDoc = physicianRes.documents && physicianRes.documents[0];
+      // Fallback: lookup by email if auth_user_id match not found
+      if (!physicianDoc && user.email) {
+        const physicianEmailRes = await databases.listDocuments(
+          appwriteConfig.staffDatabaseId,
+          appwriteConfig.physicianAccountsCollectionId,
+          [Query.equal('email', user.email)]
+        );
+        physicianDoc = physicianEmailRes.documents && physicianEmailRes.documents[0];
+      }
+
       if (!physicianDoc) {
         console.log('No staff profile found for current user; cannot save push token.');
         return;
@@ -120,27 +132,51 @@ export async function savePushTokenForCurrentUser(expoPushToken) {
       const existingTokens = Array.isArray(physicianDoc.expoPushTokens)
         ? physicianDoc.expoPushTokens
         : [];
+      const existingTokenAlt = Array.isArray(physicianDoc.expoPushToken)
+        ? physicianDoc.expoPushToken
+        : (typeof physicianDoc.expoPushToken === 'string' && physicianDoc.expoPushToken ? [physicianDoc.expoPushToken] : []);
 
-      if (existingTokens.includes(expoPushToken)) {
+      if (existingTokens.includes(expoPushToken) || existingTokenAlt.includes(expoPushToken)) {
         return;
       }
 
-      await databases.updateDocument(
-        appwriteConfig.staffDatabaseId,
-        appwriteConfig.physicianAccountsCollectionId,
-        physicianDoc.$id,
-        {
-          expoPushTokens: [...existingTokens, expoPushToken],
-          expoPushTokenUpdatedAt: new Date().toISOString(),
+      // Try schema: expoPushTokens[] (preferred)
+      try {
+        await databases.updateDocument(
+          appwriteConfig.staffDatabaseId,
+          appwriteConfig.physicianAccountsCollectionId,
+          physicianDoc.$id,
+          {
+            expoPushTokens: [...existingTokens, expoPushToken],
+          }
+        );
+      } catch (e) {
+        const msg = String(e?.message || e || '');
+        // Fallback schema: expoPushToken[] (like HealthWorkers)
+        if (msg.toLowerCase().includes('unknown attribute') && msg.includes('expoPushTokens')) {
+          await databases.updateDocument(
+            appwriteConfig.staffDatabaseId,
+            appwriteConfig.physicianAccountsCollectionId,
+            physicianDoc.$id,
+            {
+              expoPushToken: [...existingTokenAlt, expoPushToken],
+            }
+          );
+        } else {
+          throw e;
         }
-      );
+      }
 
       console.log('Saved Expo push token to physician profile');
       return;
     }
 
-    if (workerDoc.expoPushToken === expoPushToken) {
-      // No change
+    // HealthWorkers schema shows expoPushToken[] (array of strings)
+    const existingWorkerTokens = Array.isArray(workerDoc.expoPushToken)
+      ? workerDoc.expoPushToken
+      : (typeof workerDoc.expoPushToken === 'string' && workerDoc.expoPushToken ? [workerDoc.expoPushToken] : []);
+
+    if (existingWorkerTokens.includes(expoPushToken)) {
       return;
     }
 
@@ -148,7 +184,9 @@ export async function savePushTokenForCurrentUser(expoPushToken) {
       appwriteConfig.staffDatabaseId,
       appwriteConfig.healthWorkersCollectionId,
       workerDoc.$id,
-      { expoPushToken }
+      {
+        expoPushToken: [...existingWorkerTokens, expoPushToken],
+      }
     );
 
     console.log('Saved Expo push token to worker profile');

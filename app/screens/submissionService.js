@@ -1,5 +1,4 @@
-import { databases, appwriteConfig, ID } from './appwriteConfig';
-import { Query } from 'appwrite';
+import { databases, appwriteConfig, ID, Query } from './appwriteConfig';
 
 /**
  * Generate barangay code from barangay name

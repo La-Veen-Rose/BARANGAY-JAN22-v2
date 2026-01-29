@@ -5,9 +5,8 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold } from "@expo-google-fonts/poppins";
 
 // Appwrite
-import { databases, appwriteConfig, account } from './appwriteConfig';
+import { databases, appwriteConfig, account, Query } from './appwriteConfig';
 import client from './appwriteConfig';
-import { Query } from 'appwrite';
 import { getCurrentStaffProfile, STAFF_ROLE } from './staffProfileService';
 
 // SVG Logo

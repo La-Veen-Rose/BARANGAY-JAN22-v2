@@ -1,14 +1,14 @@
 {
   "expo": {
     "owner": "raven.123",
-    "name": "Barangay",
-    "slug": "Barangay",
+    "name": "RAVEN-Staffs",
+    "slug": "raven-staffs",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./app/assets/icon.png",
+    "icon": "./app/assets/raven-fang.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./app/assets/splash-icon.png",
+      "image": "./app/assets/icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -16,8 +16,9 @@
       "supportsTablet": true
     },
     "android": {
+      "jsEngine": "hermes",
       "adaptiveIcon": {
-        "foregroundImage": "./app/assets/adaptive-icon.png",
+        "foregroundImage": "./app/assets/raven-fang.png",
         "edgeToEdgeEnabled": true,
         "backgroundColor": "#ffffff"
       },
@@ -37,11 +38,20 @@
     },
     "plugins": [
       "expo-font",
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "ndkVersion": "26.1.10909125",
+            "cmakeVersion": "3.22.1"
+          }
+        }
+      ]
     ],
     "extra": {
       "eas": {
-        "projectId": "1e3aacfa-7cc0-4a17-ac04-81450cb19d32"
+        "projectId": "fa390030-2b86-4235-b70d-34a0b253ae39"
       }
     }
   }

@@ -15,8 +15,7 @@ import {
 
 import { FontAwesome5, Ionicons } from '@expo/vector-icons'; 
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { databases, appwriteConfig, account } from './appwriteConfig';
-import { Query } from 'appwrite'; 
+import { databases, appwriteConfig, account, Query } from './appwriteConfig';
 
 const { width } = Dimensions.get("window");
 

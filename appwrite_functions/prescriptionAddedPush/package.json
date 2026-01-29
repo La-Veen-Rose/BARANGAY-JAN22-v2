@@ -1,7 +1,7 @@
 {
-  "name": "patient-status-changed-push",
+  "name": "prescription-added-push",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "src/main.js",
   "dependencies": {
     "node-appwrite": "^13.0.0"
   }

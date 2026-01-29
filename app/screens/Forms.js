@@ -12,8 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
-import { databases, account, appwriteConfig, ID } from './appwriteConfig';
-import { Query } from 'appwrite';
+import { databases, account, appwriteConfig, ID, Query } from './appwriteConfig';
 import { getCurrentStaffProfile, STAFF_ROLE } from './staffProfileService';
 
 // Image Upload Service

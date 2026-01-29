@@ -1,8 +1,8 @@
 // Appwrite Cloud Function: notify the BHW who submitted a record when its status changes
-// Trigger: databases.*.collections.*.documents.*.update (patientRecords collection)
-// Runtime: Node 18+
+// Trigger: databases.*.tables.*.rows.*.update (patientrecords)
+// Runtime: Node (CommonJS)
 
-import * as sdk from 'node-appwrite';
+const sdk = require('node-appwrite');
 
 const pickEnv = (...keys) => {
   for (const key of keys) {
@@ -72,7 +72,7 @@ const fetchJsonWithTimeout = async (url, options, timeoutMs) => {
   }
 };
 
-export default async ({ req, res, log, error }) => {
+module.exports = async ({ req, res, log, error }) => {
   try {
     const endpointPick = pickEnv(
       'APPWRITE_FUNCTION_ENDPOINT',
@@ -120,7 +120,6 @@ export default async ({ req, res, log, error }) => {
     }
 
     const client = new sdk.Client().setEndpoint(endpoint).setProject(projectId).setKey(apiKey);
-
     const databases = new sdk.Databases(client);
 
     const payload = JSON.parse(process.env.APPWRITE_FUNCTION_EVENT_DATA || '{}');
@@ -131,7 +130,6 @@ export default async ({ req, res, log, error }) => {
     const newStatus = normalizeStatus(payload.status);
     const oldStatus = normalizeStatus(previous.status);
 
-    // Only act on transitions to Verified/Terminated
     if (!newStatus || (newStatus !== 'Verified' && newStatus !== 'Terminated')) {
       return res.json({ message: 'Status not Verified/Terminated; skipping.' });
     }
@@ -205,10 +203,13 @@ export default async ({ req, res, log, error }) => {
       20000
     );
 
+    log('Expo response', { httpStatus, ok, result: json });
+
     if (!ok) {
       return res.json({ error: 'Expo push API returned non-2xx.', httpStatus, result: json }, 502);
     }
 
+    log('Push complete', { sent: expoMessages.length, durationMs: Date.now() - startedAt });
     return res.json({ sent: expoMessages.length, result: json, durationMs: Date.now() - startedAt });
   } catch (err) {
     error(err);
