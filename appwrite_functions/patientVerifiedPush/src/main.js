@@ -34,9 +34,19 @@ module.exports = async ({ req, res, log, error }) => {
       sdk.Query.isNotNull('expoPushToken'),
     ]);
 
-    const tokens = workersRes.documents
-      .map((doc) => doc.expoPushToken)
-      .filter(Boolean);
+    const tokens = [];
+    for (const doc of workersRes.documents) {
+      if (typeof doc.expoPushToken === 'string' && doc.expoPushToken) {
+        tokens.push(doc.expoPushToken);
+      }
+      if (Array.isArray(doc.expoPushToken)) {
+        for (const token of doc.expoPushToken) {
+          if (typeof token === 'string' && token) {
+            tokens.push(token);
+          }
+        }
+      }
+    }
 
     if (!tokens.length) {
       return res.json({ message: 'No Expo push tokens found for this location.' });
