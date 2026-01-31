@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { 
     View, 
     Text, 
@@ -11,12 +11,15 @@ import {
     Alert,
     Dimensions,
     Modal,
+    Platform,
+    TextInput,
 } 
 from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Ionicons } from '@expo/vector-icons';
-import { databases, storage, appwriteConfig, APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID } from './appwriteConfig';
+import { databases, appwriteConfig, APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID } from './appwriteConfig';
 import CityHealthLogo from '../assets/CITY HEALTH OFFICE LOGO.png';
-import { printMockPatientRecordPdf } from './patientRecordPdfService';
+import { printPatientRecordPdf } from './patientRecordPdfService';
 import { getCurrentStaffProfile } from './staffProfileService';
 
 function PatientRecordContent({ patient, onOpenPrescription }) {
@@ -24,15 +27,102 @@ function PatientRecordContent({ patient, onOpenPrescription }) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [loadingImages, setLoadingImages] = useState({});
+    const imageLoadTimeoutsRef = useRef({});
     const [selectedImage, setSelectedImage] = useState(null);
     const [showQRModal, setShowQRModal] = useState(false);
     const [showPrescriptionTemplate, setShowPrescriptionTemplate] = useState(false);
     const [staffRole, setStaffRole] = useState(null);
+    const [showTerminateModal, setShowTerminateModal] = useState(false);
+    const [terminateReason, setTerminateReason] = useState('');
+    const [terminateReasonError, setTerminateReasonError] = useState('');
+    const [isTerminating, setIsTerminating] = useState(false);
+    const [showTerminateSuccess, setShowTerminateSuccess] = useState(false);
+    const terminateSuccessTimeoutRef = useRef(null);
     const documentId = patient?.id || patient?.$id;
+    const patientUpdatedAt = patient?.$updatedAt || patient?.updatedAt || null;
+
+    const normalizeStatus = (value) => String(value || '').trim().toLowerCase();
+
+    const normalizeOptionalBool = (value) => {
+        if (value === true) return true;
+        if (value === false) return false;
+        return null;
+    };
+
+    const SIGNATURE_CACHE_PREFIX = 'physician_signature';
+    const getSavedSignaturePath = (physicianKey) => {
+        const baseDir = FileSystem.documentDirectory || FileSystem.cacheDirectory;
+        if (!baseDir) return null;
+        return `${baseDir}${SIGNATURE_CACHE_PREFIX}_${physicianKey || 'default'}.png`;
+    };
+
+    const getPrescriptionImageUrl = (fileId) => {
+        if (!fileId) return null;
+
+        if (typeof fileId === 'string' && /^https?:\/\//i.test(fileId.trim())) {
+            return fileId.trim();
+        }
+
+        try {
+            const bucketId = appwriteConfig.prescriptionBucketId || appwriteConfig.imagesBucketId;
+            if (!bucketId) return null;
+
+            return `${APPWRITE_ENDPOINT}/storage/buckets/${bucketId}/files/${fileId}/view?project=${APPWRITE_PROJECT_ID}`;
+        } catch (e) {
+            console.warn('Failed to build prescription image URL:', e?.message || e);
+            return null;
+        }
+    };
+
+    // If a parent screen (e.g., Prescription flow) passes an updated/optimistic status,
+    // reflect it immediately so the badge updates without waiting for a refetch.
+    useEffect(() => {
+        const nextStatus = normalizeStatus(patient?.status);
+        if (!nextStatus) return;
+
+        setPatientData((prev) => {
+            if (!prev) return { status: nextStatus };
+
+            const prevStatus = normalizeStatus(prev?.status);
+            if (prevStatus === nextStatus) return prev;
+
+            // Never downgrade a verified record back to pending/other while transitions are in-flight.
+            if (prevStatus === 'verified' && nextStatus !== 'verified') return prev;
+            if (prevStatus === 'terminated' && nextStatus !== 'terminated') return prev;
+
+            return { ...prev, status: nextStatus };
+        });
+    }, [patient?.status]);
 
     const handlePrintRecord = async () => {
         try {
-            const result = await printMockPatientRecordPdf();
+            if (!patientData) {
+                Alert.alert('Download Record', 'Patient record is still loading.');
+                return;
+            }
+
+            const prescriptionImageUrl = getPrescriptionImageUrl(patientData?.prescriptionImageId);
+
+            // Best effort: embed the physician signature image used (cached on device)
+            let signatureImageUri = null;
+            try {
+                const staff = await getCurrentStaffProfile();
+                const profile = staff?.profile || staff || {};
+                const physicianKey = profile?.auth_user_id || profile?.AuthUserId || profile?.userId || profile?.$id || 'default';
+                const path = getSavedSignaturePath(physicianKey);
+                if (path) {
+                    const info = await FileSystem.getInfoAsync(path);
+                    if (info?.exists) signatureImageUri = path;
+                }
+            } catch (e) {
+                // ignore signature loading failures
+            }
+
+            const result = await printPatientRecordPdf({
+                doc: patientData,
+                signatureImageUri,
+                prescriptionImageUrl,
+            });
             if (!result?.uri) {
                 Alert.alert('Download Record', 'PDF generation failed.');
                 return;
@@ -54,6 +144,81 @@ function PatientRecordContent({ patient, onOpenPrescription }) {
 
     const handleDownloadRecord = () => {
         return handlePrintRecord();
+    };
+
+    const handleChangeTerminateReason = (value) => {
+        if (terminateReasonError) {
+            setTerminateReasonError('');
+        }
+        setTerminateReason(value);
+    };
+
+    const openTerminatePrompt = () => {
+        setTerminateReason('');
+        setTerminateReasonError('');
+        setShowTerminateModal(true);
+    };
+
+    const closeTerminatePrompt = () => {
+        if (isTerminating) return;
+        setShowTerminateModal(false);
+        setTerminateReason('');
+        setTerminateReasonError('');
+    };
+
+    const triggerTerminateSuccess = () => {
+        setShowTerminateSuccess(true);
+        if (terminateSuccessTimeoutRef.current) {
+            clearTimeout(terminateSuccessTimeoutRef.current);
+        }
+        terminateSuccessTimeoutRef.current = setTimeout(() => {
+            setShowTerminateSuccess(false);
+        }, 3000);
+    };
+
+    const handleConfirmTerminate = async () => {
+        const trimmedReason = terminateReason.trim();
+        if (!trimmedReason) {
+            setTerminateReasonError('Please provide a termination reason.');
+            return;
+        }
+
+        if (terminateReasonError) {
+            setTerminateReasonError('');
+        }
+
+        if (!documentId) {
+            Alert.alert('Terminate Record', 'Patient record is missing an ID.');
+            return;
+        }
+
+        try {
+            setIsTerminating(true);
+            await databases.updateDocument(
+                appwriteConfig.patientDatabaseId,
+                appwriteConfig.patientRecordsCollectionId,
+                documentId,
+                {
+                    status: 'terminated',
+                    terminateReason: trimmedReason,
+                }
+            );
+
+            setPatientData((prev) => {
+                if (!prev) return prev;
+                return { ...prev, status: 'terminated', terminateReason: trimmedReason };
+            });
+
+            setShowTerminateModal(false);
+            setTerminateReason('');
+            setTerminateReasonError('');
+            triggerTerminateSuccess();
+        } catch (e) {
+            console.error('Terminate record error:', e);
+            Alert.alert('Terminate Record', e?.message || 'Failed to terminate patient record.');
+        } finally {
+            setIsTerminating(false);
+        }
     };
 
     useEffect(() => {
@@ -90,11 +255,15 @@ function PatientRecordContent({ patient, onOpenPrescription }) {
                     documentId
                 );
 
+                const optimisticStatus = normalizeStatus(patient?.status);
+                const fetchedStatus = normalizeStatus(doc?.status) || 'pending';
+                const effectiveStatus = optimisticStatus === 'verified' ? 'verified' : fetchedStatus;
+
                 // Format data for display
                 const formattedData = {
                     // Patient Info
-                    status: doc.status || 'pending',
-                    name: formatName(doc.lastName, doc.firstName, doc.middleName),
+                    status: effectiveStatus,
+                    name: formatName(doc.lastName, doc.firstName, doc.middleName, doc.suffix),
                     age: doc.age,
                     dateOfBirth: formatDate(doc.dateOfBirth),
                     sex: doc.sex,
@@ -107,6 +276,10 @@ function PatientRecordContent({ patient, onOpenPrescription }) {
 
                     // Pertinent Data
                     bitingAnimal: getAnimalTypeDisplay(doc.animalType, doc.animalTypeOther),
+                    // Raw fields for PDF rendering / checkbox logic
+                    animalType: doc.animalType,
+                    animalTypeOther: doc.animalTypeOther,
+                    animalOwnership: doc.animalOwnership || doc.ownership || doc.animalOwned,
                     exposureDate: formatDate(doc.exposureDate),
                     exposureTime: formatTime(doc.exposureTime),
                     placeOfIncidence: capitalizeWords(doc.placeOfIncidence),
@@ -140,14 +313,21 @@ function PatientRecordContent({ patient, onOpenPrescription }) {
                     siteInvolved: doc.siteInvolved,
                     categoryOfExposure: doc.categoryOfExposure,
                     assessment: doc.assessmentDiagnosis,
+                    terminateReason: doc.terminateReason || '',
 
                     // Treatment Plan
                     plan: Array.isArray(doc.plan) ? doc.plan.join(', ') : doc.plan,
-                    passiveVaccine: Array.isArray(doc.passiveVaccine) ? doc.passiveVaccine.join(', ') : doc.passiveVaccine,
-                    noOfUnits: doc.passiveVaccineUnits,
-                    activeVaccine: Array.isArray(doc.activeVaccine) ? doc.activeVaccine.join(', ') : doc.activeVaccine,
-                    antibiotic: doc.antibioticsText,
-                    analgesic: doc.antiInflammatoryMedication,
+                    tt_vaccine: normalizeOptionalBool(doc.tt_vaccine),
+                    htig_vaccine: normalizeOptionalBool(doc.htig_vaccine),
+                    pcec_pvrv_vaccine: normalizeOptionalBool(doc.pcec_pvrv_vaccine),
+                    erig_vaccine: normalizeOptionalBool(doc.erig_vaccine),
+                    hrig_vaccine: normalizeOptionalBool(doc.hrig_vaccine),
+                    otherMed: doc.otherMed,
+                    tt_units: doc.tt_units,
+                    htig_units: doc.htig_units,
+                    pcec_pvrv_units: doc.pcec_pvrv_units,
+                    erig_units: doc.erig_units,
+                    hrig_units: doc.hrig_units,
                     physician: doc.physicianName,
 
                     // Generated prescription asset (stored in dedicated Appwrite bucket)
@@ -158,10 +338,11 @@ function PatientRecordContent({ patient, onOpenPrescription }) {
                         : (Array.isArray(doc.prescription_images) ? (doc.prescription_images[0] || '') : ''),
 
                     // Wound Images
-                    woundImages: doc.woundImages || [],
+                    woundImages: normalizeFileIds(doc.woundImages),
 
                     // Footer
                     submissionId: doc.submissionID,
+                    patientRecordId: doc.patientRecordId || doc.patientRecordID,
                     date: formatDate(doc.dateSubmitted),
                     time: formatTime(doc.dateSubmitted),
                 };
@@ -177,11 +358,17 @@ function PatientRecordContent({ patient, onOpenPrescription }) {
         };
 
         fetchPatientRecord();
-    }, [documentId]);
+    }, [documentId, patientUpdatedAt]);
 
-    const formatName = (lastName, firstName, middleName) => {
+    const formatName = (lastName, firstName, middleName, suffix) => {
         let name = '';
         if (lastName) name += capitalizeWords(lastName);
+
+        const suffixText = String(suffix || '').trim();
+        if (suffixText) {
+            name += (name ? ' ' : '') + suffixText.toUpperCase();
+        }
+
         if (firstName) name += (name ? ', ' : '') + capitalizeWords(firstName);
         if (middleName) name += (name ? ' ' : '') + capitalizeWords(middleName);
         return name;
@@ -227,11 +414,87 @@ function PatientRecordContent({ patient, onOpenPrescription }) {
         return yesNo || '';
     };
 
+    const displayUnits = (value) => {
+        if (value === null || value === undefined) return '';
+        return String(value);
+    };
+
+    const BooleanCheckbox = ({ value }) => {
+        if (value === null || value === undefined) {
+            return <View style={styles.boolCheckboxPlaceholder} />;
+        }
+
+        return (
+            <View style={styles.boolCheckboxBox}>
+                {value ? <Ionicons name="checkmark" size={14} color="#125872" /> : null}
+            </View>
+        );
+    };
+
+    const normalizeFileIds = (value) => {
+        if (!value) return [];
+
+        const toArray = (input) => {
+            if (Array.isArray(input)) return input;
+            if (typeof input === 'string') {
+                const trimmed = input.trim();
+                if (!trimmed) return [];
+                try {
+                    const parsed = JSON.parse(trimmed);
+                    if (parsed && typeof parsed === 'object') {
+                        return toArray(parsed);
+                    }
+                } catch (err) {
+                    // Fall through to treat as literal string/CSV
+                }
+
+                if (trimmed.includes(',')) {
+                    return trimmed.split(',').map(part => part.trim()).filter(Boolean);
+                }
+                return [trimmed];
+            }
+            if (typeof input === 'object') {
+                return [input];
+            }
+            return [];
+        };
+
+        const flatList = toArray(value)
+            .map(item => {
+                if (!item) return null;
+                if (typeof item === 'string') return item.trim() || null;
+                if (typeof item === 'object') {
+                    return item.fileId
+                        || item.$id
+                        || item.id
+                        || item.url
+                        || item.path
+                        || null;
+                }
+                return null;
+            })
+            .filter(Boolean)
+            .map(String);
+
+        return Array.from(new Set(flatList));
+    };
+
     const getImageUrl = (fileId) => {
         if (!fileId) return null;
+
+        // If the value already looks like a full URL (legacy data), use it directly.
+        if (typeof fileId === 'string' && /^https?:\/\//i.test(fileId.trim())) {
+            return fileId.trim();
+        }
+
         try {
-            // fileId is already stored as a string ID
-            return storage.getFileView(appwriteConfig.imagesBucketId, fileId).toString();
+            const bucketId = appwriteConfig.imagesBucketId;
+            if (!bucketId) {
+                console.error('Images bucket ID is not configured.');
+                return null;
+            }
+
+            return `${APPWRITE_ENDPOINT}/storage/buckets/${bucketId}/files/${fileId}/view?project=${APPWRITE_PROJECT_ID}`;
         } catch (error) {
             console.error('Error generating image URL:', error);
             return null;
@@ -269,21 +532,56 @@ function PatientRecordContent({ patient, onOpenPrescription }) {
         return fileIds.map(fileId => getImageUrl(fileId)).filter(url => url !== null);
     };
 
-    const handleImageLoadStart = (index) => {
-        setLoadingImages(prev => ({ ...prev, [index]: true }));
+    const clearImageLoadTimeout = (key) => {
+        const timeoutId = imageLoadTimeoutsRef.current?.[key];
+        if (timeoutId) {
+            clearTimeout(timeoutId);
+            delete imageLoadTimeoutsRef.current[key];
+        }
     };
 
-    const handleImageLoadEnd = (index) => {
-        setLoadingImages(prev => ({ ...prev, [index]: false }));
+    const handleImageLoadStart = (key) => {
+        if (!key) return;
+        clearImageLoadTimeout(key);
+        setLoadingImages(prev => ({ ...prev, [key]: true }));
+
+        // Fallback: if the image load callbacks don't fire reliably on some devices,
+        // don't leave the spinner stuck forever.
+        imageLoadTimeoutsRef.current[key] = setTimeout(() => {
+            setLoadingImages(prev => ({ ...prev, [key]: false }));
+            clearImageLoadTimeout(key);
+        }, 10000);
     };
 
-    const ImageWithLoader = ({ uri, index }) => (
+    const handleImageLoadEnd = (key) => {
+        if (!key) return;
+        clearImageLoadTimeout(key);
+        setLoadingImages(prev => ({ ...prev, [key]: false }));
+    };
+
+    useEffect(() => {
+        return () => {
+            // Cleanup any pending timeouts on unmount
+            const timeouts = imageLoadTimeoutsRef.current || {};
+            Object.keys(timeouts).forEach((key) => clearImageLoadTimeout(key));
+        };
+    }, []);
+
+    useEffect(() => {
+        return () => {
+            if (terminateSuccessTimeoutRef.current) {
+                clearTimeout(terminateSuccessTimeoutRef.current);
+            }
+        };
+    }, []);
+
+    const ImageWithLoader = ({ uri }) => (
         <TouchableOpacity 
             style={styles.imageContainer}
             onPress={() => setSelectedImage(uri)}
             activeOpacity={0.7}
         >
-            {loadingImages[index] && (
+            {!!loadingImages[uri] && (
                 <View style={styles.imageLoader}>
                     <ActivityIndicator size="large" color="#125872" />
                 </View>
@@ -291,9 +589,10 @@ function PatientRecordContent({ patient, onOpenPrescription }) {
             <Image
                 source={{ uri }}
                 style={styles.woundImage}
-                onLoadStart={() => handleImageLoadStart(index)}
-                onLoadEnd={() => handleImageLoadEnd(index)}
-                onError={() => handleImageLoadEnd(index)}
+                onLoadStart={() => handleImageLoadStart(uri)}
+                onLoad={() => handleImageLoadEnd(uri)}
+                onLoadEnd={() => handleImageLoadEnd(uri)}
+                onError={() => handleImageLoadEnd(uri)}
             />
         </TouchableOpacity>
     );
@@ -332,10 +631,12 @@ function PatientRecordContent({ patient, onOpenPrescription }) {
     const isPhysician = staffRole === 'physician';
 
     const shouldOpenPrescriptionScreen = isPhysician && isPending;
+    const showTerminateButton = isPhysician && isPending;
 
     // Physicians should be able to see treatment details even for pending records.
     const canSeeTreatmentDetails = isVerified || isPhysician;
     const showActionButtons = isVerified || isPhysician;
+    const woundImageUrls = getImageUrls();
 
     const getStatusColor = (status) => {
         switch (status) {
@@ -363,25 +664,6 @@ function PatientRecordContent({ patient, onOpenPrescription }) {
         }
     };
 
-    // Image Modal View
-    if (selectedImage) {
-        return (
-            <View style={styles.imageModalContainer}>
-                <TouchableOpacity
-                    style={styles.imageModalClose}
-                    onPress={() => setSelectedImage(null)}
-                >
-                    <Ionicons name="close-circle" size={40} color="#FFFFFF" />
-                </TouchableOpacity>
-                <Image
-                    source={{ uri: selectedImage }}
-                    style={styles.imageModalImage}
-                    resizeMode="contain"
-                />
-            </View>
-        );
-    }
-    
     return (
         <>
         {/* RECORD STATUS - OVERLAY */}
@@ -647,13 +929,22 @@ function PatientRecordContent({ patient, onOpenPrescription }) {
                 </View>
                 </View>
                 <View style={styles.divider} />
+            </View>
+            </View>
 
-                {canSeeTreatmentDetails ? (
-                    <>
-                        <View style={styles.infoRow}>
-                            <View style={styles.infoColumn}>
-                                <Text style={styles.infoLabel}>CATEGORY OF EXPOSURE</Text>
+            {/* TREATMENT PLAN & VACCINES */}
+            {canSeeTreatmentDetails ? (
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>TREATMENT PLAN & VACCINES</Text>
+                    <View style={styles.infoContainer}>
+                        <View style={styles.infoRowHalf}>
+                            <View style={[styles.infoColumnHalf, { flex: 1.1 }]}>
+                                <Text style={styles.infoLabel}>Category of Exposure :</Text>
                                 <Text style={styles.infoValue}>{patientData.categoryOfExposure}</Text>
+                            </View>
+                            <View style={[styles.infoColumnHalf, { flex: 0.9 }]}>
+                                <Text style={styles.infoLabel}>Plan :</Text>
+                                <Text style={styles.infoValue}>{patientData.plan}</Text>
                             </View>
                         </View>
                         <View style={styles.divider} />
@@ -664,51 +955,79 @@ function PatientRecordContent({ patient, onOpenPrescription }) {
                                 <Text style={styles.infoValue}>{patientData.assessment}</Text>
                             </View>
                         </View>
-                    </>
-                ) : (
-                    <View style={styles.noticeContainer}>
-                        <Ionicons name="information-circle-outline" size={18} color="#125872" style={{ marginRight: 6 }} />
-                        <Text style={styles.noticeText}>
-                            Treatment details from Category of Exposure down to Physician will be available once this record has been verified and a prescription has been sent back by the staff.
-                        </Text>
-                    </View>
-                )}
-            </View>
-            </View>
-
-            {/* TREATMENT PLAN & VACCINES */}
-            {canSeeTreatmentDetails && (
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>TREATMENT PLAN & VACCINES</Text>
-                    <View style={styles.infoContainer}>
-                        <View style={styles.infoRow}>
-                            <View style={[styles.infoColumn, { flex: .94 }]}>
-                                <Text style={styles.infoLabel}>Plan :</Text>
-                                <Text style={styles.infoValue}>{patientData.plan}</Text>
-                            </View>
-                            <View style={[styles.infoColumn, { flex: 1 }]}>
-                                <Text style={styles.infoLabel}>Passive Vaccine :</Text>
-                                <Text style={styles.infoValue}>{patientData.passiveVaccine}</Text>
-                            </View>
-                            <View style={[styles.infoColumn, { flex: 1 }]}>
-                                <Text style={styles.infoLabel}>No. of Units</Text>
-                                <Text style={styles.infoValue}>{patientData.noOfUnits}</Text>
-                            </View>
-                        </View>
                         <View style={styles.divider} />
 
-                        <View style={styles.infoRow}>
-                            <View style={[styles.infoColumn, { flex: 0.75 }]}>
-                                <Text style={styles.infoLabel}>Active Vaccine :</Text>
-                                <Text style={styles.infoValue}>{patientData.activeVaccine}</Text>
+                        <View style={styles.infoRowHalf}>
+                            <View style={[styles.infoColumnHalf, { flex: 1.2 }]}>
+                                <View style={styles.labelWithCheckbox}>
+                                    <BooleanCheckbox value={patientData.tt_vaccine} />
+                                    <Text style={[styles.infoLabel, styles.labelWithCheckboxText]}>TETANUS TOXOID (TT) :</Text>
+                                </View>
                             </View>
-                            <View style={[styles.infoColumn, { flex: 0.75 }]}>
-                                <Text style={styles.infoLabel}>Antibiotic :</Text>
-                                <Text style={styles.infoValue}>{patientData.antibiotic}</Text>
+                            <View style={[styles.infoColumnHalf, { flex: 0.8 }]}>
+                                <Text style={styles.infoLabel}># of Units :</Text>
+                                <Text style={styles.infoValue}>{displayUnits(patientData.tt_units)}</Text>
                             </View>
-                            <View style={[styles.infoColumn, { flex: .8 }]}>
-                                <Text style={styles.infoLabel}>Analgesic/ Anti-inflammatory :</Text>
-                                <Text style={styles.infoValue}>{patientData.analgesic}</Text>
+                        </View>
+
+                        <View style={styles.infoRowHalf}>
+                            <View style={[styles.infoColumnHalf, { flex: 1.2 }]}>
+                                <View style={styles.labelWithCheckbox}>
+                                    <BooleanCheckbox value={patientData.htig_vaccine} />
+                                    <Text style={[styles.infoLabel, styles.labelWithCheckboxText]}>HTIG :</Text>
+                                </View>
+                            </View>
+                            <View style={[styles.infoColumnHalf, { flex: 0.8 }]}>
+                                <Text style={styles.infoLabel}># of Units :</Text>
+                                <Text style={styles.infoValue}>{displayUnits(patientData.htig_units)}</Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.infoRowHalf}>
+                            <View style={[styles.infoColumnHalf, { flex: 1.2 }]}>
+                                <View style={styles.labelWithCheckbox}>
+                                    <BooleanCheckbox value={patientData.pcec_pvrv_vaccine} />
+                                    <Text style={[styles.infoLabel, styles.labelWithCheckboxText]}>PCEC/PVRV :</Text>
+                                </View>
+                            </View>
+                            <View style={[styles.infoColumnHalf, { flex: 0.8 }]}>
+                                <Text style={styles.infoLabel}># of Units :</Text>
+                                <Text style={styles.infoValue}>{displayUnits(patientData.pcec_pvrv_units)}</Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.infoRowHalf}>
+                            <View style={[styles.infoColumnHalf, { flex: 1.2 }]}>
+                                <View style={styles.labelWithCheckbox}>
+                                    <BooleanCheckbox value={patientData.erig_vaccine} />
+                                    <Text style={[styles.infoLabel, styles.labelWithCheckboxText]}>ERIG :</Text>
+                                </View>
+                            </View>
+                            <View style={[styles.infoColumnHalf, { flex: 0.8 }]}>
+                                <Text style={styles.infoLabel}># of Units :</Text>
+                                <Text style={styles.infoValue}>{displayUnits(patientData.erig_units)}</Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.infoRowHalf}>
+                            <View style={[styles.infoColumnHalf, { flex: 1.2 }]}>
+                                <View style={styles.labelWithCheckbox}>
+                                    <BooleanCheckbox value={patientData.hrig_vaccine} />
+                                    <Text style={[styles.infoLabel, styles.labelWithCheckboxText]}>HRIG :</Text>
+                                </View>
+                            </View>
+                            <View style={[styles.infoColumnHalf, { flex: 0.8 }]}>
+                                <Text style={styles.infoLabel}># of Units :</Text>
+                                <Text style={styles.infoValue}>{displayUnits(patientData.hrig_units)}</Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.divider} />
+
+                        <View style={styles.infoRowFull}>
+                            <View style={styles.infoColumnFull}>
+                                <Text style={styles.infoLabel}>OTHERS :</Text>
+                                <Text style={styles.infoValue}>{patientData.otherMed}</Text>
                             </View>
                         </View>
                         <View style={styles.divider} />
@@ -721,28 +1040,28 @@ function PatientRecordContent({ patient, onOpenPrescription }) {
                         </View>
                     </View>
                 </View>
+            ) : (
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>TREATMENT PLAN & VACCINES</Text>
+                    <View style={styles.noticeContainer}>
+                        <Ionicons name="information-circle-outline" size={18} color="#125872" style={{ marginRight: 6 }} />
+                        <Text style={styles.noticeText}>
+                            Treatment details will be available once this record has been verified and a prescription has been sent back by the physician.
+                        </Text>
+                    </View>
+                </View>
             )}
 
             {/* WOUND IMAGES */}
             <View style={styles.section}>
             <Text style={styles.sectionTitle}>WOUND IMAGES</Text>
             <View style={styles.imagesContainer}>
-                {patientData.woundImages && patientData.woundImages.length > 0 ? (
-                    <>
-                        <View style={styles.imageGrid}>
-                            {getImageUrls().slice(0, 3).map((uri, index) => (
-                                <ImageWithLoader key={index} uri={uri} index={index} />
-                            ))}
-                        </View>
-
-                        {getImageUrls().length > 3 && (
-                            <View style={styles.imageGridBottom}>
-                                {getImageUrls().slice(3).map((uri, index) => (
-                                    <ImageWithLoader key={index} uri={uri} index={index + 3} />
-                                ))}
-                            </View>
-                        )}
-                    </>
+                {woundImageUrls.length > 0 ? (
+                    <View style={styles.imageGridWrap}>
+                        {woundImageUrls.map((uri) => (
+                            <ImageWithLoader key={uri} uri={uri} />
+                        ))}
+                    </View>
                 ) : (
                     <View style={styles.noImagesContainer}>
                         <Ionicons name="image-outline" size={48} color="#CCC" />
@@ -757,6 +1076,10 @@ function PatientRecordContent({ patient, onOpenPrescription }) {
                 <View style={styles.footerRow}>
                     <Text style={styles.footerLabel}>Submission ID :</Text>
                     <Text style={styles.footerValue}>{patientData.submissionId}</Text>
+                </View>
+                <View style={styles.footerRow}>
+                    <Text style={styles.footerLabel}>Patient Record ID (after verification) :</Text>
+                    <Text style={styles.footerValue}>{patientData.patientRecordId || '—'}</Text>
                 </View>
                 <View style={styles.footerRow}>
                     <Text style={styles.footerLabel}>Date & Time Submitted :</Text>
@@ -792,6 +1115,16 @@ function PatientRecordContent({ patient, onOpenPrescription }) {
                     <Text style={styles.actionButtonText}>Prescription</Text>
                 </TouchableOpacity>
 
+                {showTerminateButton && (
+                    <TouchableOpacity
+                        style={[styles.actionButton, styles.terminateActionButton]}
+                        onPress={openTerminatePrompt}
+                    >
+                        <Ionicons name="close-circle-outline" size={20} color="#B91C1C" />
+                        <Text style={[styles.actionButtonText, styles.terminateActionButtonText]}>Terminate</Text>
+                    </TouchableOpacity>
+                )}
+
                 {/* For physicians on pending records, only show Prescription as requested */}
                 {!shouldOpenPrescriptionScreen && (
                     <TouchableOpacity
@@ -804,6 +1137,32 @@ function PatientRecordContent({ patient, onOpenPrescription }) {
                 )}
             </View>
         )}
+
+        {/* Full-screen wound image viewer */}
+        <Modal
+            visible={!!selectedImage}
+            transparent
+            animationType="fade"
+            statusBarTranslucent
+            onRequestClose={() => setSelectedImage(null)}
+        >
+            <View style={styles.imageModalContainer}>
+                <TouchableOpacity
+                    style={styles.imageModalClose}
+                    onPress={() => setSelectedImage(null)}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                >
+                    <Ionicons name="close" size={28} color="#FFFFFF" />
+                </TouchableOpacity>
+                {!!selectedImage && (
+                    <Image
+                        source={{ uri: selectedImage }}
+                        style={styles.imageModalImage}
+                        resizeMode="contain"
+                    />
+                )}
+            </View>
+        </Modal>
 
         {/* Prescription modal (shows stored prescription image only) */}
         {showActionButtons && !shouldOpenPrescriptionScreen && (
@@ -853,6 +1212,71 @@ function PatientRecordContent({ patient, onOpenPrescription }) {
                 </View>
             </Modal>
         )}
+
+        <Modal
+            visible={showTerminateModal}
+            transparent
+            animationType="fade"
+            onRequestClose={closeTerminatePrompt}
+        >
+            <View style={styles.terminateOverlay}>
+                <View style={styles.terminateContainer}>
+                    <Text style={styles.terminateTitle}>Reason for terminating</Text>
+                    <Text style={styles.terminateSubtitle}>Provide a short note so the staff knows why this record is closed.</Text>
+                    <TextInput
+                        style={[styles.terminateInput, terminateReasonError ? styles.terminateInputError : null]}
+                        placeholder="Type termination reason"
+                        placeholderTextColor="#94A3B8"
+                        multiline
+                        value={terminateReason}
+                        editable={!isTerminating}
+                        onChangeText={handleChangeTerminateReason}
+                    />
+                    {terminateReasonError ? (
+                        <Text style={styles.terminateErrorText}>{terminateReasonError}</Text>
+                    ) : null}
+
+                    <View style={styles.terminateActionsRow}>
+                        <TouchableOpacity
+                            style={[styles.terminateActionButtonBase, styles.terminateCancelButton]}
+                            onPress={closeTerminatePrompt}
+                            disabled={isTerminating}
+                        >
+                            <Text style={styles.terminateCancelText}>Cancel</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[
+                                styles.terminateActionButtonBase,
+                                styles.terminateSubmitButton,
+                                isTerminating && styles.terminateSubmitButtonDisabled,
+                            ]}
+                            onPress={handleConfirmTerminate}
+                            disabled={isTerminating}
+                        >
+                            {isTerminating ? (
+                                <ActivityIndicator size="small" color="#FFFFFF" />
+                            ) : (
+                                <Text style={styles.terminateSubmitText}>Terminate</Text>
+                            )}
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </View>
+        </Modal>
+
+        <Modal
+            visible={showTerminateSuccess}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setShowTerminateSuccess(false)}
+        >
+            <View style={styles.terminateSuccessOverlay} pointerEvents="none">
+                <View style={styles.terminateSuccessCard}>
+                    <Ionicons name="checkmark-circle" size={40} color="#22C55E" />
+                    <Text style={styles.terminateSuccessText}>Patient record successfully terminated</Text>
+                </View>
+            </View>
+        </Modal>
         </>
     );
 }
@@ -974,6 +1398,32 @@ const styles = StyleSheet.create({
     color: '#000000',
     fontFamily: 'Poppins',
   },
+    boolValueRow: {
+        marginTop: 2,
+    },
+    labelWithCheckbox: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
+    labelWithCheckboxText: {
+        flex: 1,
+        flexShrink: 1,
+    },
+    boolCheckboxBox: {
+        width: 18,
+        height: 18,
+        borderRadius: 4,
+        borderWidth: 2,
+        borderColor: '#125872',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#FFFFFF',
+    },
+    boolCheckboxPlaceholder: {
+        width: 18,
+        height: 18,
+    },
     noticeContainer: {
         flexDirection: 'row',
         alignItems: 'flex-start',
@@ -1002,19 +1452,13 @@ const styles = StyleSheet.create({
   imagesContainer: {
     alignItems: 'center',
   },
-  imageGrid: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 12,
-    marginBottom: 12,
-    marginHorizontal: 12,
-  },
-  imageGridBottom: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 12,
-    marginHorizontal: 12,
-  },
+    imageGridWrap: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+    },
   imageWrapper: {
     width: 100,
     height: 100,
@@ -1027,8 +1471,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
-    marginRight: 8,
-    marginBottom: 8,
+        margin: 6,
   },
   imageLoader: {
     position: 'absolute',
@@ -1114,6 +1557,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+    imageModalClose: {
+        position: 'absolute',
+        top: Platform.OS === 'android' ? 40 : 60,
+        right: 16,
+        zIndex: 20,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: 'rgba(0,0,0,0.35)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
   imageModalImage: {
     width: '100%',
     height: '100%',
@@ -1153,6 +1608,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: 'bold',
   },
+    terminateActionButton: {
+        backgroundColor: '#FEE2E2',
+        borderWidth: 1,
+        borderColor: '#F87171',
+    },
+    terminateActionButtonText: {
+        color: '#B91C1C',
+    },
     // Prescription template modal styles
     rxOverlay: {
         flex: 1,
@@ -1302,6 +1765,123 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '600',
         color: '#125872',
+    },
+    terminateOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    terminateContainer: {
+        width: '100%',
+        maxWidth: 420,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 20,
+        padding: 24,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 12,
+    },
+    terminateTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#111827',
+        marginBottom: 6,
+        fontFamily: 'Poppins',
+    },
+    terminateSubtitle: {
+        fontSize: 12,
+        color: '#475569',
+        marginBottom: 14,
+        fontFamily: 'Poppins',
+    },
+    terminateInput: {
+        minHeight: 100,
+        borderWidth: 1,
+        borderColor: '#CBD5F5',
+        borderRadius: 12,
+        paddingHorizontal: 14,
+        paddingVertical: 12,
+        backgroundColor: '#F8FAFC',
+        color: '#0F172A',
+        fontSize: 13,
+        textAlignVertical: 'top',
+        fontFamily: 'Poppins',
+    },
+    terminateInputError: {
+        borderColor: '#EF4444',
+    },
+    terminateErrorText: {
+        color: '#EF4444',
+        fontSize: 12,
+        marginTop: 6,
+        fontFamily: 'Poppins',
+    },
+    terminateActionsRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        gap: 12,
+        marginTop: 18,
+    },
+    terminateActionButtonBase: {
+        flex: 1,
+        paddingVertical: 12,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    terminateCancelButton: {
+        backgroundColor: '#F1F5F9',
+        borderWidth: 1,
+        borderColor: '#CBD5F5',
+    },
+    terminateSubmitButton: {
+        backgroundColor: '#DC2626',
+    },
+    terminateSubmitButtonDisabled: {
+        opacity: 0.7,
+    },
+    terminateCancelText: {
+        color: '#0F172A',
+        fontSize: 13,
+        fontWeight: '600',
+        fontFamily: 'Poppins',
+    },
+    terminateSubmitText: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: '700',
+        fontFamily: 'Poppins',
+    },
+    terminateSuccessOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.3)',
+        justifyContent: 'flex-end',
+        padding: 24,
+    },
+    terminateSuccessCard: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 20,
+        paddingVertical: 16,
+        paddingHorizontal: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 6,
+        elevation: 10,
+    },
+    terminateSuccessText: {
+        color: '#14532D',
+        fontSize: 14,
+        fontWeight: '600',
+        flex: 1,
+        fontFamily: 'Poppins',
     },
   qrModalOverlay: {
     flex: 1,

@@ -10,7 +10,6 @@ import {
     ActivityIndicator,
     Alert,
     ScrollView,
-    Image,
 } from "react-native";
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -203,64 +202,46 @@ function MainDashboard({ navigation, openSidebar }) {
                     </View>
                 </TouchableOpacity>
 
-                {/* TWO COLUMN LAYOUT FOR METRICS */}
-                <View style={styles.twoColumnContainer}>
-                    <View style={styles.columnLeft}>
-                        {/* TOTAL CASES THIS MONTH */}
-                        <TouchableOpacity 
-                            style={styles.halfCard}
-                            onPress={() => navigation.navigate('AnimalBiteReport', { workerProfile })}
-                        >
-                            <Text
-                                style={[styles.halfCardTitle, { fontSize: responsiveFont(16, { min: 12, max: 18 }) }]}
-                                numberOfLines={1}
-                                adjustsFontSizeToFit
-                                minimumFontScale={0.75}
-                                ellipsizeMode="tail"
-                            >
-                                Total Cases this Month
-                            </Text>
-                            <View style={styles.numberWithLabel}>
-                                <Text style={styles.halfCardNumber}>{monthlyCases} cases</Text>
-                            </View>
-                            <Text style={styles.trendText}>Trend: {monthlyTrend >= 0 ? '+' : ''}{monthlyTrend}% from last month</Text>
-                        </TouchableOpacity>
-
-                        {/* ANNUAL BITE REPORTS */}
-                        <TouchableOpacity
-                            style={[styles.halfCard, { marginTop: 12 }]}
-                            onPress={() => navigation.navigate('AnimalBiteReport', { workerProfile })}
-                        >
-                            <Text
-                                style={[styles.halfCardTitle, { fontSize: responsiveFont(16, { min: 12, max: 18 }) }]}
-                                numberOfLines={1}
-                                adjustsFontSizeToFit
-                                minimumFontScale={0.75}
-                                ellipsizeMode="tail"
-                            >
-                                Annual Bite Reports
-                            </Text>
-                            <View style={styles.numberWithLabel}>
-                                <Text style={styles.halfCardNumber}>{annualCases} reports</Text>
-                            </View>
-                            <Text style={styles.trendText}>Trend: {annualTrend >= 0 ? '+' : ''}{annualTrend}% from last year</Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    {/* RAVEN CARD */}
-                    <TouchableOpacity style={styles.ravenCard}>
+                {/* METRICS ROW */}
+                <View style={styles.metricsRow}>
+                    {/* TOTAL CASES THIS MONTH */}
+                    <TouchableOpacity 
+                        style={[styles.halfCard, styles.metricsCardLeft]}
+                        onPress={() => navigation.navigate('AnimalBiteReport', { workerProfile })}
+                    >
                         <Text
-                            style={[styles.ravenText, { fontSize: responsiveFont(32, { min: 22, max: 36 }) }]}
+                            style={[styles.halfCardTitle, { fontSize: responsiveFont(16, { min: 12, max: 18 }) }]}
                             numberOfLines={1}
                             adjustsFontSizeToFit
-                            minimumFontScale={0.7}
+                            minimumFontScale={0.75}
                             ellipsizeMode="tail"
                         >
-                            RAVEN
+                            Total Cases this Month
                         </Text>
-                        <View style={styles.shieldContainer}>
-                            <Image source={require('../assets/RAVEN MONO 5.png')} style={styles.ravenImage} />
+                        <View style={styles.numberWithLabel}>
+                            <Text style={styles.halfCardNumber}>{monthlyCases} cases</Text>
                         </View>
+                        <Text style={styles.trendText}>Trend: {monthlyTrend >= 0 ? '+' : ''}{monthlyTrend}% from last month</Text>
+                    </TouchableOpacity>
+
+                    {/* ANNUAL BITE REPORTS */}
+                    <TouchableOpacity
+                        style={[styles.halfCard, styles.metricsCardRight]}
+                        onPress={() => navigation.navigate('AnimalBiteReport', { workerProfile })}
+                    >
+                        <Text
+                            style={[styles.halfCardTitle, { fontSize: responsiveFont(16, { min: 12, max: 18 }) }]}
+                            numberOfLines={1}
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.75}
+                            ellipsizeMode="tail"
+                        >
+                            Annual Bite Reports
+                        </Text>
+                        <View style={styles.numberWithLabel}>
+                            <Text style={styles.halfCardNumber}>{annualCases} reports</Text>
+                        </View>
+                        <Text style={styles.trendText}>Trend: {annualTrend >= 0 ? '+' : ''}{annualTrend}% from last year</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -383,14 +364,18 @@ const styles = StyleSheet.create({
     },
     
     // TWO COLUMN LAYOUT
-    twoColumnContainer: {
+    metricsRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         marginBottom: 12,
-        gap: 12,
     },
-    columnLeft: {
-        flex: 1.5,
+    metricsCardLeft: {
+        flex: 1,
+        marginRight: 6,
+    },
+    metricsCardRight: {
+        flex: 1,
+        marginLeft: 6,
     },
     halfCard: {
         backgroundColor: 'white',
@@ -441,38 +426,6 @@ const styles = StyleSheet.create({
     //     marginLeft: 3,
     //     marginBottom: 2,
     // },
-    
-    // RAVEN CARD
-    ravenCard: {
-        backgroundColor: '#125872',
-        borderRadius: 15,
-        padding: 15,
-        justifyContent: 'center',
-        alignItems: 'center',
-        flex: 0.8,
-        shadowColor: "#000",
-        shadowOpacity: 0.15,
-        shadowRadius: 4,
-        elevation: 4,
-   
-    },
-    ravenText: {
-        fontSize: 32,
-        fontWeight: '900',
-        letterSpacing: -1,
-        color: 'white',
-        marginBottom: 10,
-        textAlign: 'center',
-    },
-    shieldContainer: {
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    ravenImage: {
-        width: 100,
-        height: 100,
-        resizeMode: 'contain',
-    },
     
     // RABIES EDUCATION CARD
     rabEdCard: {

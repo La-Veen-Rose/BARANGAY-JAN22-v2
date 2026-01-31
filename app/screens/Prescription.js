@@ -13,7 +13,7 @@ import {
     Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { useMemo, useState, useEffect, useRef } from 'react';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
@@ -31,6 +31,7 @@ import {
 
 // Constants / helpers
 const CATEGORY_OPTIONS = ['I', 'II', 'III'];
+const PLAN_OPTIONS = ['PEP', 'BOOSTER'];
 const BASE64_ENCODING = FileSystem?.EncodingType?.Base64 || 'base64';
 const SIGNATURE_CACHE_PREFIX = 'physician_signature';
 
@@ -114,6 +115,34 @@ const toIntOrNull = (value) => {
     return Number.isNaN(num) ? null : num;
 };
 
+const firstValueFromArray = (value) => {
+    if (Array.isArray(value)) {
+        const firstFilled = value.find((entry) => typeof entry === 'string' && entry.trim().length > 0);
+        return firstFilled || (value[0] != null ? String(value[0]) : '');
+    }
+    if (value == null) return '';
+    return String(value);
+};
+
+const joinArrayForDisplay = (value) => {
+    if (Array.isArray(value)) return value.filter(Boolean).join(', ');
+    return value ? String(value) : '';
+};
+
+const textToArrayPayload = (text) => {
+    if (!text) return [];
+    return String(text)
+        .split(/[\n,]/)
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+};
+
+const normalizePlanValue = (value) => {
+    const text = firstValueFromArray(value).trim();
+    if (!text) return '';
+    return text.toUpperCase();
+};
+
 function Prescription({ navigation, route }) {
     const { recordId, isViewMode } = route?.params || {};
     const [dateValue, setDateValue] = useState(new Date());
@@ -124,6 +153,8 @@ function Prescription({ navigation, route }) {
     const [bitingAnimal, setBitingAnimal] = useState('');
     const [exposureType, setExposureType] = useState('');
     const [siteInvolved, setSiteInvolved] = useState('');
+    const [planValue, setPlanValue] = useState('');
+    const [woundDescriptionText, setWoundDescriptionText] = useState('');
     
     const [vaccinesChecked, setVaccinesChecked] = useState({
         tt: false,
@@ -159,6 +190,7 @@ function Prescription({ navigation, route }) {
     const [signatureModalVisible, setSignatureModalVisible] = useState(false);
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
+    const [planDropdownOpen, setPlanDropdownOpen] = useState(false);
     const [signatureImageUri, setSignatureImageUri] = useState(null);
     const [signatureDataUrl, setSignatureDataUrl] = useState(null);
     const [fullName, setFullName] = useState('');
@@ -178,6 +210,27 @@ function Prescription({ navigation, route }) {
         }
         const target = Math.min(120, Math.max(56, 28 + value.length * 12));
         setSexBoxWidth(target);
+    };
+
+    const handleManualDateChange = (text) => {
+        if (isViewMode) return;
+        setDateText(text);
+    };
+
+    const handleDateBlur = () => {
+        if (isViewMode) return;
+        const parsed = tryParseDate(dateText);
+        if (parsed) {
+            setDateValue(parsed);
+            setDateText(formatMMDDYYYYFromDate(parsed));
+        }
+    };
+
+    const handleSetToday = () => {
+        if (isViewMode) return;
+        const today = new Date();
+        setDateValue(today);
+        setDateText(formatMMDDYYYYFromDate(today));
     };
 
     const composeFullName = (payload = {}) => {
@@ -212,26 +265,40 @@ function Prescription({ navigation, route }) {
         setDiagnosis(payload.assessmentDiagnosis || payload.diagnosis || '');
         setCategory(payload.categoryOfExposure || payload.category || '');
         setSiteInvolved(payload.siteInvolved || '');
-        setOthers(payload.others || '');
+        setOthers(payload.otherMed || payload.others || '');
         if (payload.dateText) setDateText(payload.dateText);
         if (payload.bitingAnimal) setBitingAnimal(payload.bitingAnimal);
         if (payload.exposureType) setExposureType(payload.exposureType);
+        setPlanValue(normalizePlanValue(payload.plan || payload.vaccinationPlan || ''));
+        setWoundDescriptionText(joinArrayForDisplay(payload.woundDescription));
     };
 
     const hydrateVaccinesFromRecord = (doc = {}) => {
+        const asBool = (value) => {
+            if (value === true) return true;
+            if (value === false) return false;
+            const text = String(value ?? '').trim().toLowerCase();
+            if (!text) return false;
+            if (['yes', 'true', '1'].includes(text)) return true;
+            if (['no', 'false', '0'].includes(text)) return false;
+            return Boolean(value);
+        };
+
+        const asText = (value) => (value === null || value === undefined ? '' : String(value));
+
         setVaccinesChecked({
-            tt: !!doc.tt_vaccine,
-            htig: !!doc.htig_vaccine,
-            pcec: !!doc.pcec_pvrv_vaccine,
-            erig: !!doc.erig_vaccine,
-            hrig: !!doc.hrig_vaccine,
+            tt: asBool(doc.tt_vaccine),
+            htig: asBool(doc.htig_vaccine),
+            pcec: asBool(doc.pcec_pvrv_vaccine),
+            erig: asBool(doc.erig_vaccine),
+            hrig: asBool(doc.hrig_vaccine),
         });
         setUnits({
-            tt: doc.tt_units ? String(doc.tt_units) : '',
-            htig: doc.htig_units ? String(doc.htig_units) : '',
-            pcec: doc.pcec_pvrv_units ? String(doc.pcec_pvrv_units) : '',
-            erig: doc.erig_units ? String(doc.erig_units) : '',
-            hrig: doc.hrig_units ? String(doc.hrig_units) : '',
+            tt: asText(doc.tt_units),
+            htig: asText(doc.htig_units),
+            pcec: asText(doc.pcec_pvrv_units),
+            erig: asText(doc.erig_units),
+            hrig: asText(doc.hrig_units),
         });
     };
 
@@ -248,6 +315,8 @@ function Prescription({ navigation, route }) {
         setBitingAnimal((doc.animalTypeOther || doc.animalType || '').toString().toUpperCase());
         const exposure = Array.isArray(doc.typeOfExposure) ? doc.typeOfExposure.join(', ') : doc.typeOfExposure;
         setExposureType((exposure || '').toString().toUpperCase());
+        setPlanValue(normalizePlanValue(doc.plan || doc.vaccinationPlan || ''));
+        setWoundDescriptionText(joinArrayForDisplay(doc.woundDescription));
         hydrateVaccinesFromRecord(doc);
         if (doc.prescription_images_preview) {
             setPreviewUri(doc.prescription_images_preview);
@@ -647,12 +716,32 @@ function Prescription({ navigation, route }) {
             return;
         }
 
-        // 1) Show PNG overlay (what you requested)
-        const pngUri = await capturePrescriptionPng(true);
+        // 1) Generate PNG (do not show local preview here)
+        const pngUri = await capturePrescriptionPng(false);
 
         if (!pngUri) {
             // If we can't generate the PNG, we shouldn't mark the record as verified.
             return;
+        }
+
+        // Show preview hosted by NavigationHeader so it persists while underlying content switches.
+        // Also optimistically mark the underlying Patient Record as verified immediately.
+        try {
+            const basePatient = recordDoc || route?.params?.patient || {};
+            const optimisticPatient = {
+                ...(basePatient || {}),
+                status: 'verified',
+                // Provide a changing value so PatientRecordContent can choose to refetch later.
+                $updatedAt: basePatient?.$updatedAt || new Date().toISOString(),
+            };
+            navigation?.showPreview?.({
+                uri: pngUri,
+                focusStatus: 'Verified',
+                activeScreen: 'PATIENT_RECORD',
+                requestedPatient: optimisticPatient,
+            });
+        } catch (e) {
+            // ignore if showPreview not available
         }
 
         // 2) Persist data back to patient record + store uploaded file id
@@ -676,7 +765,12 @@ function Prescription({ navigation, route }) {
             status: 'verified',
             assessmentDiagnosis: diagnosis,
             categoryOfExposure: category ? String(category).trim() : '',
-            others: others,
+            otherMed: others,
+            plan: planValue ? [planValue] : [],
+            woundDescription: textToArrayPayload(woundDescriptionText),
+
+            // Persist prescribing physician name on the patient record
+            physicianName: physicianNameValue ? String(physicianNameValue).trim() : null,
 
             // Store prescription image file id (one record = one prescription)
             prescription_images: uploadedFileId,
@@ -706,6 +800,42 @@ function Prescription({ navigation, route }) {
 
             // Keep local UI in sync without a refetch.
             setRecordDoc((prev) => ({ ...(prev || {}), ...(updated || payload) }));
+
+            // Update the header's selected patient so it reflects the verified status
+            try {
+                navigation?.showPreview?.({ uri: pngUri, focusStatus: 'Verified', activeScreen: 'PATIENT_RECORD', requestedPatient: updated || payload });
+            } catch (e) {
+                // ignore
+            }
+
+            // If patientRecordId is generated by a server-side Appwrite Function,
+            // it may not exist on the immediate update response. Refetch once.
+            try {
+                const maybeHasId = (doc) => Boolean(doc?.patientRecordId || doc?.patientRecordID);
+                if (!maybeHasId(updated)) {
+                    setTimeout(async () => {
+                        try {
+                            const latest = await databases.getDocument(
+                                appwriteConfig.patientDatabaseId,
+                                appwriteConfig.patientRecordsCollectionId,
+                                recordId
+                            );
+                            if (maybeHasId(latest)) {
+                                setRecordDoc((prev) => ({ ...(prev || {}), ...(latest || {}) }));
+                                try {
+                                    navigation?.showPreview?.({ uri: pngUri, focusStatus: 'Verified', activeScreen: 'PATIENT_RECORD', requestedPatient: latest });
+                                } catch (e2) {
+                                    // ignore
+                                }
+                            }
+                        } catch (e3) {
+                            // ignore refetch failures
+                        }
+                    }, 2000);
+                }
+            } catch (e) {
+                // ignore
+            }
         } catch (e) {
                 // If Appwrite schema expects a number for categoryOfExposure, retry with int.
                 const msg = String(e?.message || '');
@@ -725,6 +855,14 @@ function Prescription({ navigation, route }) {
                             retryPayload
                         );
                         setRecordDoc((prev) => ({ ...(prev || {}), ...(updated2 || retryPayload) }));
+
+                        // Ensure header shows the updated (verified) patient
+                        try {
+                            navigation?.showPreview?.({ uri: pngUri, focusStatus: 'Verified', activeScreen: 'PATIENT_RECORD', requestedPatient: updated2 || retryPayload });
+                        } catch (e2) {
+                            // ignore
+                        }
+
                         return;
                     } catch (e2) {
                         console.error('Prescription save error (retry):', e2);
@@ -759,6 +897,8 @@ function Prescription({ navigation, route }) {
                 .trim()
                 .replace(/^,\s*|,\s*$/g, ''),
             siteInvolved: siteInvolved || '',
+            woundDescription: woundDescriptionText || '',
+            plan: planValue || '',
             checks: {
                 tt: !!vaccinesChecked.tt,
                 htig: !!vaccinesChecked.htig,
@@ -788,6 +928,8 @@ function Prescription({ navigation, route }) {
         vaccinesChecked,
         units,
         others,
+        woundDescriptionText,
+        planValue,
         signatureImageUri,
         signatureDataUrl,
         physicianNameValue,
@@ -826,39 +968,40 @@ function Prescription({ navigation, route }) {
                     {/* Patient Info */}
                     <View style={[styles.sectionCard, styles.patientInfo]}>
                         <Text style={styles.label}>DATE:</Text>
-                        <View style={styles.dateRow}>
-                            <View style={styles.dateInputWrap}>
-                                <TextInput
-                                    value={dateText}
-                                    onChangeText={isViewMode ? undefined : setDateText}
-                                    placeholder="mm/dd/yyyy"
-                                    placeholderTextColor="#8E8E8E"
-                                    style={styles.dateInput}
-                                    editable={!isViewMode}
-                                />
-                                <TouchableOpacity
-                                    onPress={() => {
-                                        if (isViewMode) return;
-                                        setShowDatePicker(true);
-                                    }}
-                                    activeOpacity={0.85}
-                                    style={styles.calendarButton}
-                                >
-                                    <Ionicons name="calendar-outline" size={18} color="#125872" />
-                                </TouchableOpacity>
-                            </View>
+                        <View style={[styles.hybridInputContainer, isViewMode && styles.hybridDisabled]}>
+                            <TextInput
+                                value={dateText}
+                                onChangeText={handleManualDateChange}
+                                onBlur={handleDateBlur}
+                                placeholder="MM/DD/YYYY"
+                                placeholderTextColor="#9CA3AF"
+                                style={[styles.hybridTextInput, isViewMode && styles.inputReadonly]}
+                                keyboardType="numbers-and-punctuation"
+                                editable={!isViewMode}
+                            />
+
+                            <TouchableOpacity
+                                style={styles.hybridIconButton}
+                                onPress={() => {
+                                    if (isViewMode) return;
+                                    setShowDatePicker(true);
+                                }}
+                                activeOpacity={0.8}
+                            >
+                                <FontAwesome5 name="calendar-alt" size={18} color="#125872" />
+                            </TouchableOpacity>
+
                             {!isViewMode ? (
-                                <TouchableOpacity
-                                    onPress={() => {
-                                        const d = new Date();
-                                        setDateValue(d);
-                                        setDateText(formatMMDDYYYYFromDate(d));
-                                    }}
-                                    style={styles.todayButton}
-                                    activeOpacity={0.85}
-                                >
-                                    <Text style={styles.todayButtonText}>Today</Text>
-                                </TouchableOpacity>
+                                <>
+                                    <View style={styles.hybridDivider} />
+                                    <TouchableOpacity
+                                        style={styles.hybridTextButton}
+                                        onPress={handleSetToday}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Text style={styles.todayInlineText}>Today</Text>
+                                    </TouchableOpacity>
+                                </>
                             ) : null}
                         </View>
 
@@ -902,11 +1045,9 @@ function Prescription({ navigation, route }) {
                         />
 
                         <Text style={[styles.label, styles.mt16]}>ADDRESS:</Text>
-                        <TextInput
-                            value={addressLine}
-                            editable={false}
-                            style={[styles.input, styles.inputReadonly]}
-                        />
+                        <View style={[styles.input, styles.inputReadonly, styles.addressDisplay]}>
+                            <Text style={styles.addressDisplayText}>{addressLine}</Text>
+                        </View>
 
                         <View style={styles.row2}>
                             <View style={styles.colHalf}>
@@ -934,7 +1075,7 @@ function Prescription({ navigation, route }) {
                             editable={!isViewMode}
                         />
 
-                        {/* CATEGORY + SITE INVOLVED (side-by-side like the screenshot) */}
+                        {/* CATEGORY + PLAN */}
                         <View style={[styles.row2, styles.mt16]}>
                             <View style={styles.colHalf}>
                                 <Text style={styles.label}>CATEGORY:</Text>
@@ -943,6 +1084,7 @@ function Prescription({ navigation, route }) {
                                     activeOpacity={0.85}
                                     onPress={() => {
                                         if (isViewMode) return;
+                                        setPlanDropdownOpen(false);
                                         setCategoryDropdownOpen((prev) => !prev);
                                     }}
                                 >
@@ -970,7 +1112,12 @@ function Prescription({ navigation, route }) {
                                                         setCategoryDropdownOpen(false);
                                                     }}
                                                 >
-                                                    <Text style={[styles.dropdownItemText, isSelected && styles.dropdownItemTextSelected]}>
+                                                    <Text
+                                                        style={[
+                                                            styles.dropdownItemText,
+                                                            isSelected && styles.dropdownItemTextSelected,
+                                                        ]}
+                                                    >
                                                         {opt}
                                                     </Text>
                                                 </TouchableOpacity>
@@ -981,44 +1128,101 @@ function Prescription({ navigation, route }) {
                             </View>
 
                             <View style={styles.colHalf}>
-                                <Text style={styles.label}>SITE INVOLVED:</Text>
-                                <TextInput
-                                    value={siteInvolved}
-                                    onChangeText={isViewMode ? undefined : setSiteInvolved}
-                                    placeholder="Type"
-                                    placeholderTextColor="#9A9A9A"
-                                    style={[styles.siteInput, isViewMode && styles.inputReadonly]}
-                                    editable={!isViewMode}
-                                />
+                                <Text style={styles.label}>PLAN:</Text>
+                                <TouchableOpacity
+                                    style={[styles.selectButton, isViewMode && styles.selectButtonDisabled]}
+                                    activeOpacity={0.85}
+                                    onPress={() => {
+                                        if (isViewMode) return;
+                                        setCategoryDropdownOpen(false);
+                                        setPlanDropdownOpen((prev) => !prev);
+                                    }}
+                                >
+                                    <Text style={[styles.selectButtonText, !planValue && styles.selectPlaceholder]}>
+                                        {planValue || 'SELECT'}
+                                    </Text>
+                                    <Ionicons name={planDropdownOpen ? 'chevron-up' : 'chevron-down'} size={18} color="#125872" />
+                                </TouchableOpacity>
+
+                                {planDropdownOpen && !isViewMode ? (
+                                    <View style={styles.dropdownList}>
+                                        {PLAN_OPTIONS.map((option, idx) => {
+                                            const isSelected = planValue === option;
+                                            return (
+                                                <TouchableOpacity
+                                                    key={option}
+                                                    style={[
+                                                        styles.dropdownItem,
+                                                        idx === PLAN_OPTIONS.length - 1 && { borderBottomWidth: 0 },
+                                                        isSelected && styles.dropdownItemSelected,
+                                                    ]}
+                                                    activeOpacity={0.85}
+                                                    onPress={() => {
+                                                        setPlanValue(option);
+                                                        setPlanDropdownOpen(false);
+                                                    }}
+                                                >
+                                                    <Text
+                                                        style={[
+                                                            styles.dropdownItemText,
+                                                            isSelected && styles.dropdownItemTextSelected,
+                                                        ]}
+                                                    >
+                                                        {option}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                    </View>
+                                ) : null}
                             </View>
                         </View>
+
+                        <Text style={[styles.label, styles.mt16]}>SITE INVOLVED:</Text>
+                        <TextInput
+                            value={siteInvolved}
+                            onChangeText={isViewMode ? undefined : setSiteInvolved}
+                            placeholder="e.g. Left arm, right leg"
+                            placeholderTextColor="#9CA3AF"
+                            style={[styles.input, isViewMode && styles.inputReadonly]}
+                            editable={!isViewMode}
+                        />
+
+                        <Text style={[styles.label, styles.mt16]}>DESCRIPTION OF WOUND:</Text>
+                        <TextInput
+                            value={woundDescriptionText}
+                            onChangeText={isViewMode ? undefined : setWoundDescriptionText}
+                            placeholder="Describe the wound or list wound types"
+                            placeholderTextColor="#9CA3AF"
+                            style={[styles.input, styles.textArea, styles.woundArea, isViewMode && styles.inputReadonly]}
+                            multiline
+                            editable={!isViewMode}
+                        />
 
                         <View style={[styles.row2, styles.mt16]}>
                             <View style={styles.colHalf}>
                                 <Text style={styles.label}>TYPE OF BITING ANIMAL:</Text>
-                                <TouchableOpacity
-                                    style={[styles.pillButton, isViewMode && styles.pillButtonDisabled]}
-                                    activeOpacity={0.85}
-                                    onPress={() => {
-                                        if (isViewMode) return;
-                                        setBitingAnimal((prev) => (prev === 'DOG' ? 'CAT' : 'DOG'));
-                                    }}
-                                >
-                                    <Text style={styles.pillButtonText}>{bitingAnimal}</Text>
-                                </TouchableOpacity>
+                                <TextInput
+                                    value={bitingAnimal}
+                                    onChangeText={isViewMode ? undefined : (text) => setBitingAnimal((text || '').toUpperCase())}
+                                    placeholder="DOG, CAT, etc."
+                                    placeholderTextColor="#9CA3AF"
+                                    autoCapitalize="characters"
+                                    style={[styles.input, isViewMode && styles.inputReadonly]}
+                                    editable={!isViewMode}
+                                />
                             </View>
                             <View style={styles.colHalf}>
                                 <Text style={styles.label}>TYPE OF EXPOSURE:</Text>
-                                <TouchableOpacity
-                                    style={[styles.pillButton, isViewMode && styles.pillButtonDisabled]}
-                                    activeOpacity={0.85}
-                                    onPress={() => {
-                                        if (isViewMode) return;
-                                        setExposureType((prev) => (prev === 'BITE' ? 'SCRATCH' : 'BITE'));
-                                    }}
-                                >
-                                    <Text style={styles.pillButtonText}>{exposureType}</Text>
-                                </TouchableOpacity>
+                                <TextInput
+                                    value={exposureType}
+                                    onChangeText={isViewMode ? undefined : (text) => setExposureType((text || '').toUpperCase())}
+                                    placeholder="BITE, SCRATCH, etc."
+                                    placeholderTextColor="#9CA3AF"
+                                    autoCapitalize="characters"
+                                    style={[styles.input, isViewMode && styles.inputReadonly]}
+                                    editable={!isViewMode}
+                                />
                             </View>
                         </View>
                     </View>
@@ -1198,6 +1402,17 @@ function Prescription({ navigation, route }) {
                                         <View style={{ width: 118, alignItems: 'flex-end' }}>
                                             <Text style={styles.rxLabel}> </Text>
                                             <Text style={styles.rxValue}>{printData.siteInvolved}</Text>
+                                        </View>
+                                    </View>
+
+                                    <View style={styles.rxInfoRow}>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={styles.rxLabel}>PLAN:</Text>
+                                            <Text style={styles.rxValue}>{printData.plan}</Text>
+                                        </View>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={styles.rxLabel}>WOUND:</Text>
+                                            <Text style={styles.rxValue}>{printData.woundDescription}</Text>
                                         </View>
                                     </View>
 
@@ -1444,17 +1659,18 @@ function VaccineRow({ label, checked, units, onToggle, onUnitsChange, editable =
                 <Text style={styles.vaccineLabel}>{label}</Text>
             </View>
 
-            <View style={styles.vaccineRight}>
-                <Text style={styles.unitsLabel}># OF UNITS:</Text>
+            <View style={styles.unitsBlock}>
+                <Text style={styles.unitsLabel}># OF UNITS</Text>
                 <TextInput
                     value={units}
                     onChangeText={unitsEditable ? handleUnitsChange : undefined}
-                    placeholder=""
-                    placeholderTextColor="#8E8E8E"
-                    style={[styles.input, styles.unitsInput, !unitsEditable && styles.inputReadonly]}
+                    placeholder="000"
+                    placeholderTextColor="#9CA3AF"
+                    style={[styles.unitsInput, !unitsEditable && styles.unitsInputDisabled]}
                     editable={unitsEditable}
                     keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
                     inputMode="numeric"
+                    maxLength={3}
                 />
             </View>
         </View>
@@ -1492,15 +1708,15 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         paddingTop: 0,
         paddingBottom: 20,
-        
     },
     scrollView: {
-        marginTop: -30,
+        marginTop: -20,
     },
     scrollContent: {
-        paddingHorizontal: 18,
-        paddingTop: 4,
-        paddingBottom: 110,
+        paddingHorizontal: 12,
+        paddingTop: 12,
+        paddingBottom: 120,
+        gap: 16,
     },
 
     paperHeader: {
@@ -1528,39 +1744,52 @@ const styles = StyleSheet.create({
     },
 
     patientInfo: {
-        borderWidth: 2,
-        borderColor: '#125872',
-        borderRadius: 16,
-        paddingHorizontal: 18,
-        paddingVertical: 20,
-        backgroundColor: '#F8FBFD',
-        shadowColor: '#000000',
+        borderWidth: 1.5,
+        borderColor: '#C9D8E6',
+        borderRadius: 18,
+        paddingHorizontal: 20,
+        paddingVertical: 24,
+        backgroundColor: '#FFFFFF',
+        shadowColor: '#102A43',
         shadowOpacity: 0.08,
-        shadowRadius: 6,
-        shadowOffset: { width: 0, height: 2 },
-        elevation: 2,
-        marginBottom: 24,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 6 },
+        elevation: 3,
+        marginBottom: 12,
     },
 
     label: {
-        color: '#000000',
-        fontWeight: '900',
-        fontSize: 12,
+        color: '#0F3C4C',
+        fontWeight: '700',
+        fontSize: 13,
         marginBottom: 6,
+        letterSpacing: 0.2,
     },
 
     input: {
-        borderWidth: 2,
-        borderColor: '#125872',
-        borderRadius: 8,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        color: '#125872',
-        fontSize: 14,
-        backgroundColor: '#FFFFFF',
+        borderWidth: 1.5,
+        borderColor: '#D5E2EC',
+        borderRadius: 10,
+        paddingHorizontal: 14,
+        paddingVertical: 12,
+        color: '#0F3C4C',
+        fontSize: 15,
+        backgroundColor: '#FBFEFF',
     },
     inputReadonly: {
-        backgroundColor: '#F1F1F1',
+        backgroundColor: '#EEF2F7',
+        borderColor: '#E3EAF2',
+        color: '#6B7280',
+    },
+    addressDisplay: {
+        minHeight: 44,
+        justifyContent: 'center',
+    },
+    addressDisplayText: {
+        color: '#6B7280',
+        fontSize: 15,
+        lineHeight: 20,
+        flexShrink: 1,
     },
     smallInput: {
         width: 60,
@@ -1572,42 +1801,52 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
     },
     textArea: {
-        minHeight: 54,
+        minHeight: 64,
         textAlignVertical: 'top',
         paddingTop: 10,
+        lineHeight: 20,
     },
 
     mt16: { marginTop: 16 },
     mt20: { marginTop: 20 },
 
-    dateRow: {
+    hybridInputContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-    },
-    dateInputWrap: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-        borderWidth: 2,
-        borderColor: '#125872',
-        borderRadius: 8,
+        borderWidth: 1.5,
+        borderColor: '#D5E2EC',
+        borderRadius: 12,
+        backgroundColor: '#FFFFFF',
         paddingHorizontal: 12,
-        backgroundColor: '#F1F1F1',
-        height: 44,
+        minHeight: 50,
     },
-    calendarButton: {
-        width: 34,
-        height: 34,
-        borderRadius: 8,
-        alignItems: 'center',
-        justifyContent: 'center',
+    hybridDisabled: {
+        backgroundColor: '#F3F6FA',
     },
-    dateInput: {
+    hybridTextInput: {
         flex: 1,
-        color: '#125872',
-        fontSize: 16,
-        paddingVertical: 0,
+        paddingVertical: 10,
+        fontSize: 15,
+        color: '#0F3C4C',
+    },
+    hybridIconButton: {
+        paddingHorizontal: 8,
+        paddingVertical: 6,
+    },
+    hybridDivider: {
+        width: 1,
+        height: 28,
+        backgroundColor: '#E2E8F0',
+        marginHorizontal: 8,
+    },
+    hybridTextButton: {
+        paddingHorizontal: 4,
+        paddingVertical: 6,
+    },
+    todayInlineText: {
+        color: '#0F8C5F',
+        fontWeight: '700',
+        fontSize: 14,
     },
     iosDateDoneButton: {
         alignSelf: 'flex-end',
@@ -1624,27 +1863,10 @@ const styles = StyleSheet.create({
         fontWeight: '900',
         fontSize: 14,
     },
-    todayButton: {
-        marginLeft: 10,
-        borderWidth: 2,
-        borderColor: '#125872',
-        borderRadius: 8,
-        paddingHorizontal: 12,
-        height: 44,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: '#F1F1F1',
-    },
-    todayButtonText: {
-        color: '#125872',
-        fontWeight: '900',
-        fontSize: 14,
-    },
-
     row2: {
         flexDirection: 'row',
         alignItems: 'flex-start',
-        gap: 18,
+        gap: 16,
     },
     colHalf: {
         flex: 1,
@@ -1654,47 +1876,35 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        borderWidth: 2,
-        borderColor: '#125872',
+        borderWidth: 1.5,
+        borderColor: '#D5E2EC',
         borderRadius: 8,
         paddingHorizontal: 12,
         height: 44,
-        backgroundColor: '#F1F1F1',
+        backgroundColor: '#F3F7FA',
         width: '100%',
     },
     selectButtonDisabled: {
         opacity: 0.65,
     },
     selectButtonText: {
-        color: '#125872',
-        fontWeight: '900',
+        color: '#0F3C4C',
+        fontWeight: '700',
     },
     selectPlaceholder: {
-        color: '#9A9A9A',
+        color: '#9CA3AF',
     },
 
     dropdownList: {
         marginTop: 8,
-        borderWidth: 2,
-        borderColor: '#125872',
-        borderRadius: 10,
-        backgroundColor: '#F1F1F1',
+        borderWidth: 1.5,
+        borderColor: '#D5E2EC',
+        borderRadius: 12,
+        backgroundColor: '#FFFFFF',
         overflow: 'hidden',
         width: '100%',
     },
 
-    siteInput: {
-        borderWidth: 2,
-        borderColor: '#125872',
-        borderRadius: 8,
-        paddingHorizontal: 12,
-        height: 44,
-        color: '#125872',
-        fontSize: 14,
-        fontWeight: '900',
-        backgroundColor: '#F1F1F1',
-        paddingVertical: 0,
-    },
     dropdownItem: {
         paddingVertical: 12,
         paddingHorizontal: 14,
@@ -1703,43 +1913,28 @@ const styles = StyleSheet.create({
         borderBottomColor: 'rgba(18,88,114,0.25)',
     },
     dropdownItemSelected: {
-        backgroundColor: '#EAF6FB',
+        backgroundColor: '#E8F4FF',
     },
     dropdownItemText: {
-        color: '#125872',
-        fontWeight: '900',
-        fontSize: 16,
+        color: '#0F3C4C',
+        fontWeight: '700',
+        fontSize: 15,
     },
     dropdownItemTextSelected: {
-        color: '#125872',
-    },
-
-    pillButton: {
-        borderWidth: 2,
-        borderColor: '#125872',
-        borderRadius: 10,
-        height: 44,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: '#F1F1F1',
-    },
-    pillButtonDisabled: {
-        opacity: 0.65,
-    },
-    pillButtonText: {
-        color: '#125872',
-        fontWeight: '900',
+        color: '#0F3C4C',
     },
 
     vaccines: {
         marginTop: 22,
-        paddingTop: 8,
+        paddingTop: 4,
     },
     vaccineRow: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingVertical: 12,
+        paddingVertical: 14,
+        borderBottomWidth: 1,
+        borderBottomColor: '#E5EDF5',
     },
     vaccineLeft: {
         flexDirection: 'row',
@@ -1748,26 +1943,36 @@ const styles = StyleSheet.create({
     },
     vaccineLabel: {
         marginLeft: 10,
-        fontSize: 13,
-        fontWeight: '900',
-        color: '#000000',
-    },
-    vaccineRight: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#0F3C4C',
     },
     unitsLabel: {
-        fontSize: 12,
-        fontWeight: '900',
-        color: '#000000',
+        fontSize: 11,
+        fontWeight: '700',
+        color: '#6B7280',
+        marginBottom: 6,
+    },
+    unitsBlock: {
+        alignItems: 'flex-end',
+        width: 88,
     },
     unitsInput: {
-        width: 80,
-        height: 36,
+        width: 64,
+        height: 40,
+        borderWidth: 1.5,
+        borderColor: '#D5E2EC',
+        borderRadius: 8,
         paddingVertical: 6,
         textAlign: 'center',
+        fontSize: 16,
+        color: '#0F3C4C',
         backgroundColor: '#FFFFFF',
+    },
+    unitsInputDisabled: {
+        backgroundColor: '#F3F6FA',
+        borderColor: '#E3EAF2',
+        color: '#94A3B8',
     },
 
     checkboxBox: {
@@ -1784,9 +1989,12 @@ const styles = StyleSheet.create({
         backgroundColor: '#EAF6FB',
     },
 
+    woundArea: {
+        backgroundColor: '#FBFEFF',
+    },
     othersArea: {
-        backgroundColor: '#F1F1F1',
-        borderColor: '#125872',
+        backgroundColor: '#FBFEFF',
+        borderColor: '#D5E2EC',
     },
 
     providerFooter: {

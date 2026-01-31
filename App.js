@@ -24,6 +24,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { navigationRef } from './app/navigation/RootNavigation';
 import { registerForPushNotificationsAsync, savePushTokenForCurrentUser } from './app/notifications/notificationService';
+import { getCurrentStaffProfile, STAFF_ROLE } from './app/screens/staffProfileService';
 
 console.log('APP_BOOT: App.js evaluated');
 
@@ -67,7 +68,23 @@ const Tab = createBottomTabNavigator();
 // ====================================================================
 function BottomTabs() {
   const [sidebarVisible, setSidebarVisible] = useState(false);
+  const [staffRole, setStaffRole] = useState(null);
   const navigation = useNavigation();
+
+  useEffect(() => {
+    const fetchStaffRole = async () => {
+      try {
+        const { role } = await getCurrentStaffProfile();
+        setStaffRole(role);
+      } catch (err) {
+        console.error('Error fetching staff role:', err);
+      }
+    };
+
+    fetchStaffRole();
+  }, []);
+
+  const isPhysician = staffRole === STAFF_ROLE.PHYSICIAN;
 
   return (
     <View style={{ flex: 1 }}>
@@ -102,7 +119,7 @@ function BottomTabs() {
             flex: 1,
             marginHorizontal: 15,
           },
-          tabBarStyle: route.name === "Forms" ? { display: 'none' } : {
+          tabBarStyle: isPhysician || route.name === "Forms" ? { display: 'none' } : {
             height: 100,
             paddingTop: 20,
             paddingBottom: 25,

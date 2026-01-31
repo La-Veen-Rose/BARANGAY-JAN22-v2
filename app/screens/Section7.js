@@ -8,7 +8,11 @@ const { width } = Dimensions.get("window");
 const MOCK_WOUND_IMAGE_PLACEHOLDER = 'https://picsum.photos/id/1018/';
 
 /* --- ADDED: date/time formatting helpers --- */
-const isTimeOnly = (val) => typeof val === 'string' && /^\d{1,2}:\d{2}$/.test(val);
+const isTimeOnly = (val) => {
+    if (typeof val !== 'string') return false;
+    const trimmed = val.trim();
+    return /^\d{1,2}:\d{2}(:\d{2})?(\s?[AaPp][Mm])?$/.test(trimmed);
+};
 
 const formatDateStr = (val) => {
     if (val === null || val === undefined || val === '') return 'N/A';
@@ -28,18 +32,41 @@ const formatDateStr = (val) => {
     return String(val).trim() || 'N/A';
 };
 
+const formatTo12Hour = (hours, minutes) => {
+    if (Number.isNaN(hours) || Number.isNaN(minutes)) return 'N/A';
+    const normalizedHours = ((hours % 24) + 24) % 24;
+    const safeMinutes = Math.max(0, Math.min(59, minutes));
+    const period = normalizedHours >= 12 ? 'PM' : 'AM';
+    let displayHour = normalizedHours % 12;
+    if (displayHour === 0) displayHour = 12;
+    return `${String(displayHour).padStart(2, '0')}:${String(safeMinutes).padStart(2, '0')} ${period}`;
+};
+
 const formatTimeStr = (val) => {
     if (val === null || val === undefined || val === '') return 'N/A';
-    if (isTimeOnly(val)) {
-        const [h, min] = val.split(':');
-        return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+    const str = String(val).trim();
+
+    const ampmMatch = str.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*([AaPp][Mm])$/);
+    if (ampmMatch) {
+        const hrs = parseInt(ampmMatch[1], 10);
+        const mins = parseInt(ampmMatch[2], 10);
+        const period = ampmMatch[3].toUpperCase();
+        const normalizedHours = ((hrs % 12) + (period === 'PM' ? 12 : 0)) % 24;
+        return formatTo12Hour(normalizedHours, mins);
     }
-    const d = new Date(val);
+
+    const timeOnlyMatch = str.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+    if (timeOnlyMatch) {
+        const hrs = parseInt(timeOnlyMatch[1], 10);
+        const mins = parseInt(timeOnlyMatch[2], 10);
+        return formatTo12Hour(hrs, mins);
+    }
+
+    const d = new Date(str);
     if (!isNaN(d.getTime())) {
-        const hh = String(d.getHours()).padStart(2, '0');
-        const mm = String(d.getMinutes()).padStart(2, '0');
-        return `${hh}:${mm}`;
+        return formatTo12Hour(d.getHours(), d.getMinutes());
     }
+
     return 'N/A';
 };
 
@@ -123,7 +150,7 @@ function Section7({ formData = {}, onSubmit, isSubmitting }) {
                 <DetailRow label="Civil Status:" value={displayData.civilStatus} />
                 <DetailRow label="Address:" value={`${displayData.purok || ''}, ${displayData.barangay || ''}, ${displayData.city || ''}`}/>
                 <DetailRow label="Date of Consultation:" value={formatDateStr(displayData.consultationDate)} />
-                <DetailRow label="Time of Consultation:" value={displayData.consultationTime} />
+                <DetailRow label="Time of Consultation:" value={formatTimeStr(displayData.consultationTime)} />
                 <DetailRow label="Interviewed & Referred by:" value={displayData.interviewedReferredBy} />
 
                 {/* --- SECTION 2: ANIMAL & EXPOSURE HISTORY --- */}
@@ -131,7 +158,7 @@ function Section7({ formData = {}, onSubmit, isSubmitting }) {
                 <DetailRow label="Type of Biting Animal:" value={getAnimalTypeDisplay(displayData.animalType, displayData.animalTypeOther)} />
                 <DetailRow label="Other Animal Type:" value={displayData.animalTypeOther} />
                 <DetailRow label="Date of Exposure:" value={formatDateStr(displayData.exposureDate)} />
-                <DetailRow label="Time of Exposure:" value={displayData.exposureTime} />
+                <DetailRow label="Time of Exposure:" value={formatTimeStr(displayData.exposureTime)} />
                 <DetailRow label="Place of Incidence (Purok):" value={displayData.placeOfIncidence} />
                 <DetailRow label="Status of Biting Animal:" value={displayData.animalStatus} />
                 <DetailRow label="Type of Exposure:" value={displayData.typeOfExposure} />
@@ -163,12 +190,11 @@ function Section7({ formData = {}, onSubmit, isSubmitting }) {
                 <DetailRow label="Tetanus Date Given:" value={formatDateStr(displayData.tetanusDateGiven)} />
                 <DetailRow label="HTIG Given:" value={displayData.HTIG} />
                 <DetailRow label="HTIG Date Given:" value={formatDateStr(displayData.htigDateGiven)} />
-                <DetailRow label="Category of Exposure:" value={displayData.categoryOfExposure} />
 
                 {/* --- SECTION 5: ASSESSMENT & TREATMENT PLAN --- */}
                 <Text style={styles.sectionTitle}>5. ASSESSMENT & TREATMENT PLAN</Text>
                 <Text style={styles.agreementText}>
-                    The assessment and prescription will be prepared after this record has been submitted. Nurse staff from the City Health Office will validate your information and create the appropriate prescription, which will be made available to you once ready.
+                    The assessment and prescription will be prepared after this record has been submitted. City Health Office physicians will validate the information first, then finalize and release the appropriate prescription once everything has been reviewed.
                 </Text>
 
                 {/* --- SECTION 6: ATTACHMENTS --- */}

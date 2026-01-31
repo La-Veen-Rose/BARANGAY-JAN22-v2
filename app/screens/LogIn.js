@@ -15,16 +15,18 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { account, appwriteConfig, databases, Query } from "./appwriteConfig";
 import { registerForPushNotificationsAsync, savePushTokenForCurrentUser } from "../notifications/notificationService";
+import { STAFF_ROLE } from "./staffProfileService";
 import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold } from "@expo-google-fonts/poppins";
 
 const { width, height } = Dimensions.get('window');
 
 // Navigation helper to keep the navigate call tidy
-const navigateToMain = (navigation, authUserId, workerProfile, records) => {
+const navigateToMain = (navigation, authUserId, workerProfile, records, staffRole) => {
     navigation.navigate('Main', {
         authUserId: authUserId,
         workerProfile: workerProfile,
         records: records,
+        staffRole,
     });
 };
 
@@ -128,7 +130,7 @@ function LogIn({ navigation }) {
 
             const records = recordsRes.documents || [];
 
-            navigateToMain(navigation, authUserId, workerProfile, records);
+            navigateToMain(navigation, authUserId, workerProfile, records, STAFF_ROLE.BHW);
 
         } catch (error) {
             console.error('Login Error:', error);

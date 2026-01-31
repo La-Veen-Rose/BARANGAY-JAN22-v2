@@ -22,6 +22,13 @@ const fetchJsonWithTimeout = async (url, options, timeoutMs) => {
   }
 };
 
+const chunkArray = (arr, size) => {
+  if (!Array.isArray(arr) || size <= 0) return [];
+  const chunks = [];
+  for (let i = 0; i < arr.length; i += size) chunks.push(arr.slice(i, i + size));
+  return chunks;
+};
+
 const pickEnv = (...keys) => {
   for (const key of keys) {
     const value = process.env[key];
@@ -137,87 +144,88 @@ module.exports = async ({ req, res, log, error }) => {
       return res.json({ message: 'Prescription unchanged; skipping.' });
     }
 
+    // Notify physicians the same way newPatientRecordPush does (broadcast to physician accounts)
     const staffDatabaseId = process.env.STAFF_DATABASE_ID;
-    const healthWorkersCollectionId = process.env.HEALTH_WORKERS_COLLECTION_ID;
+    const physicianCollectionId = process.env.PHYSICIAN_ACCOUNTS_COLLECTION_ID;
 
-    if (!staffDatabaseId || !healthWorkersCollectionId) {
-      return res.json({ message: 'Missing staff database or collection id; skipping.' });
+    if (!staffDatabaseId) {
+      return res.json({ message: 'Missing staff database id; skipping.' });
+    }
+    if (!physicianCollectionId) {
+      return res.json({ message: 'Missing PHYSICIAN_ACCOUNTS_COLLECTION_ID; skipping.' });
     }
 
-    const recordedByUserID = payload.recordedByUserID;
-    const recordedByHWID = payload.recordedByHWID;
+    log('Listing physicians for prescription notification...', { staffDatabaseId, physicianCollectionId });
+    const physiciansRes = await databases.listDocuments(staffDatabaseId, physicianCollectionId, [sdk.Query.limit(100)]);
+    log('Physicians listed', { count: physiciansRes?.documents?.length ?? 0 });
 
-    let workerDoc = null;
+    const tokens = physiciansRes.documents.flatMap((doc) => collectTokens(doc));
+    const uniqueTokens = [...new Set(tokens)].filter(Boolean);
 
-    // Primary lookup: auth_user_id
-    if (recordedByUserID) {
-      const resByAuth = await databases.listDocuments(
-        staffDatabaseId,
-        healthWorkersCollectionId,
-        [sdk.Query.equal('auth_user_id', recordedByUserID), sdk.Query.limit(1)]
-      );
-      workerDoc = resByAuth.documents?.[0] || null;
+    if (!uniqueTokens.length) {
+      return res.json({ message: 'No physician Expo push tokens found.' });
     }
 
-    // Fallback: healthWorkerID
-    if (!workerDoc && recordedByHWID) {
-      const resByHW = await databases.listDocuments(
-        staffDatabaseId,
-        healthWorkersCollectionId,
-        [sdk.Query.equal('healthWorkerID', recordedByHWID), sdk.Query.limit(1)]
-      );
-      workerDoc = resByHW.documents?.[0] || null;
-    }
-
-    if (!workerDoc) {
-      return res.json({ message: 'Submitting BHW profile not found; skipping.' });
-    }
-
-    const tokens = collectTokens(workerDoc);
-    if (!tokens.length) {
-      return res.json({ message: 'No Expo push tokens found for submitting BHW.' });
-    }
+    const expoBatches = chunkArray(uniqueTokens, 100);
+    log('Sending push notifications to physicians', { tokenCount: uniqueTokens.length, batches: expoBatches.length });
 
     const submissionID = payload.submissionID || '';
     const patientName = [payload.lastName, payload.firstName].filter(Boolean).join(', ');
 
     const title = 'Prescription is ready';
-    const body = submissionID
-      ? `Prescription added for ${submissionID}`
-      : 'A prescription has been added to your submitted record.';
+    const body = submissionID ? `Prescription added for ${submissionID}` : 'A prescription has been added to a patient record.';
 
-    const expoMessages = tokens.map((token) => ({
-      to: token,
-      sound: 'default',
-      title,
-      body,
-      data: {
-        type: 'prescription_added',
-        recordId: payload.$id,
-        submissionID,
-        patientName,
-        prescriptionFileId: newFileId,
-      },
-    }));
+    const allResults = [];
+    let sent = 0;
 
-    const { ok, status: httpStatus, json } = await fetchJsonWithTimeout(
-      'https://exp.host/--/api/v2/push/send',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(expoMessages),
-      },
-      20000
-    );
+    for (let i = 0; i < expoBatches.length; i += 1) {
+      const batchTokens = expoBatches[i];
+      const expoMessages = batchTokens.map((token) => ({
+        to: token,
+        sound: 'default',
+        title,
+        body,
+        data: {
+          type: 'prescription_added',
+          recordId: payload.$id,
+          submissionID,
+          patientName,
+          prescriptionFileId: newFileId,
+        },
+      }));
 
-    log('Expo response', { httpStatus, ok, result: json });
+      log('Sending Expo batch', { batch: i + 1, batchSize: expoMessages.length });
 
-    if (!ok) {
-      return res.json({ error: 'Expo push API returned non-2xx.', httpStatus, result: json }, 502);
+      const { ok, status: httpStatus, json } = await fetchJsonWithTimeout(
+        'https://exp.host/--/api/v2/push/send',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(expoMessages),
+        },
+        20000
+      );
+
+      log('Expo response', { batch: i + 1, httpStatus, ok, result: json });
+
+      allResults.push({ batch: i + 1, httpStatus, ok, result: json });
+      sent += expoMessages.length;
+
+      if (!ok) {
+        return res.json(
+          {
+            error: 'Expo push API returned non-2xx.',
+            httpStatus,
+            batch: i + 1,
+            result: json,
+          },
+          502
+        );
+      }
     }
 
-    log('Push complete', { sent: expoMessages.length, durationMs: Date.now() - startedAt });
-    return res.json({ sent: expoMessages.length, result: json, durationMs: Date.now() - startedAt });
+    log('Push complete', { sent, batches: allResults.length, durationMs: Date.now() - startedAt });
+    return res.json({ sent, batches: allResults.length, results: allResults, durationMs: Date.now() - startedAt });
   } catch (err) {
     error(err);
     return res.json({ error: err.message }, 500);

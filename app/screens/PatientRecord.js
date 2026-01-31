@@ -13,7 +13,7 @@ import {
     Modal } 
 from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { databases, storage, appwriteConfig } from './appwriteConfig';
+import { databases, storage, appwriteConfig, APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID } from './appwriteConfig';
 
 function PatientRecord({ navigation, route }) {
     const [patientData, setPatientData] = useState(null);
@@ -186,9 +186,19 @@ function PatientRecord({ navigation, route }) {
 
     const getImageUrl = (fileId) => {
         if (!fileId) return null;
+
+        if (typeof fileId === 'string' && /^https?:\/\//i.test(fileId.trim())) {
+            return fileId.trim();
+        }
+
         try {
-            // fileId is already stored as a string ID
-            return storage.getFileView(appwriteConfig.imagesBucketId, fileId).toString();
+            const bucketId = appwriteConfig.imagesBucketId;
+            if (!bucketId) {
+                console.error('Images bucket ID is not configured.');
+                return null;
+            }
+
+            return `${APPWRITE_ENDPOINT}/storage/buckets/${bucketId}/files/${fileId}/view?project=${APPWRITE_PROJECT_ID}`;
         } catch (error) {
             console.error('Error generating image URL:', error);
             return null;

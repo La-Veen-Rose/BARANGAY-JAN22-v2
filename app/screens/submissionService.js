@@ -17,8 +17,16 @@ const generateBarangayCode = (barangayName) => {
     if (!barangayName || barangayName.trim() === '') {
         throw new Error('Barangay name is required to generate code');
     }
+
+    const trimmed = barangayName.trim();
+
+    // If caller already passed a code (e.g., "MAN"), trust it.
+    // This helps when you maintain a fixed barangayCode column.
+    if (/^[A-Z0-9]{2,10}$/i.test(trimmed) && !/\s/.test(trimmed)) {
+        return trimmed.toUpperCase();
+    }
     
-    const words = barangayName.trim().split(/\s+/);
+    const words = trimmed.split(/\s+/);
     
     // Start with first 3 letters of first word
     let code = words[0].substring(0, 3);
@@ -104,6 +112,105 @@ export const getSubmissionID = async (barangayName) => {
     }
 };
 
+/**
+ * Generate a patient record ID in format: PR-YYYY-BRGYCODE-SUFFIX
+ * Example: PR-2025-MAN-8F3A
+ *
+ * Uses the existing submissionCounters collection to store a separate counter
+ * field (patientRecordCurrent) per barangay/year, then encodes that counter
+ * as a 4-character base36 string.
+ *
+ * @param {string} barangayName - The barangay name (e.g., "San Jose")
+ * @returns {Promise<string>} - The generated patient record ID
+ */
+export const getPatientRecordId = async (barangayName) => {
+    try {
+        if (!barangayName) {
+            throw new Error('Barangay name is required to generate patient record ID');
+        }
+
+        const barangayCode = generateBarangayCode(barangayName);
+        const currentYear = new Date().getFullYear();
+
+        const encodeSuffix = (value) => {
+            const n = Number(value) || 0;
+
+            // 4 chars base36 gives 36^4 = 1,679,616 unique values.
+            // We scramble the counter with a bijection mod 36^4 so the suffix
+            // looks random but stays collision-free per barangay+year.
+            const MOD = 36 ** 4;
+            if (n >= MOD) {
+                // Extremely unlikely in this app; fall back to longer base36.
+                return n.toString(36).toUpperCase();
+            }
+
+            // A must be coprime with 36 to be invertible mod 36^4.
+            const A = 10007;
+            const B = 7919;
+            const scrambled = (n * A + B) % MOD;
+
+            return scrambled
+                .toString(36)
+                .toUpperCase()
+                .padStart(4, '0');
+        };
+
+        // Try to get existing counter doc
+        try {
+            const counters = await databases.listDocuments(
+                appwriteConfig.patientDatabaseId,
+                appwriteConfig.submissionCountersCollectionId,
+                [
+                    Query.equal('barangayCode', barangayCode),
+                    Query.equal('submissionYear', currentYear),
+                    Query.limit(1),
+                ]
+            );
+
+            const counter = counters.documents?.[0];
+            if (counter) {
+                const newCurrent = (Number(counter.patientRecordCurrent) || 0) + 1;
+
+                await databases.updateDocument(
+                    appwriteConfig.patientDatabaseId,
+                    appwriteConfig.submissionCountersCollectionId,
+                    counter.$id,
+                    { patientRecordCurrent: newCurrent }
+                );
+
+                const suffix = encodeSuffix(newCurrent);
+                const patientRecordId = `PR-${currentYear}-${barangayCode}-${suffix}`;
+                console.log('✅ Generated patient record ID:', patientRecordId);
+                return patientRecordId;
+            }
+        } catch (e) {
+            console.log('No existing counter found for patientRecordId, creating new one');
+        }
+
+        // Create new counter doc; keep current for submissions at 0 so getSubmissionID works later.
+        await databases.createDocument(
+            appwriteConfig.patientDatabaseId,
+            appwriteConfig.submissionCountersCollectionId,
+            ID.unique(),
+            {
+                barangayCode: barangayCode,
+                submissionYear: currentYear,
+                current: 0,
+                patientRecordCurrent: 1,
+            }
+        );
+
+        const suffix = encodeSuffix(1);
+        const patientRecordId = `PR-${currentYear}-${barangayCode}-${suffix}`;
+        console.log('✅ Generated patient record ID:', patientRecordId);
+        return patientRecordId;
+    } catch (error) {
+        console.error('❌ Error generating patient record ID:', error.message);
+        throw error;
+    }
+};
+
 export default {
     getSubmissionID,
+    getPatientRecordId,
 };

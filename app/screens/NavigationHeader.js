@@ -3,6 +3,7 @@ import {
   View,
   Text,
   TouchableOpacity,
+  Image,
   StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,6 +20,13 @@ function NavigationHeader({ navigation, route }) {
   const [prescriptionParams, setPrescriptionParams] = useState(null);
   const screenName = route?.params?.screenName || 'SUBMITTED_CASES';
 
+  // Focus status for SubmittedCasesList (allows external screens to request a specific tab)
+  const [focusStatus, setFocusStatus] = useState(route?.params?.focusStatus || null);
+
+  // Prescription preview modal hosted here so it stays visible while content switches
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const [previewUri, setPreviewUri] = useState(null);
+
   const prescriptionNavigation = useMemo(() => {
     return {
       ...navigation,
@@ -26,6 +34,18 @@ function NavigationHeader({ navigation, route }) {
         // When Prescription is rendered as content inside this header,
         // go back to the patient record view (not the parent navigator).
         setActiveScreen('PATIENT_RECORD');
+      },
+      // Called by Prescription to show the preview and optionally switch underlying screen/tab
+      showPreview: ({ uri, focusStatus: requestedFocusStatus, activeScreen: requestedActive, requestedPatient } = {}) => {
+        if (requestedFocusStatus) setFocusStatus(requestedFocusStatus);
+        if (requestedActive) setActiveScreen(requestedActive);
+        if (requestedPatient) setSelectedPatient(requestedPatient);
+        setPreviewUri(uri || null);
+        setPreviewVisible(true);
+      },
+      hidePreview: () => {
+        setPreviewVisible(false);
+        setPreviewUri(null);
       },
     };
   }, [navigation]);
@@ -121,7 +141,7 @@ function NavigationHeader({ navigation, route }) {
         return (
           <SubmittedCasesList
             navigation={navigation}
-            route={route}
+            route={{ ...(route || {}), params: { ...(route?.params || {}), focusStatus } }}
             onOpenPatientRecordContent={(patient) => {
               setSelectedPatient(patient);
               setActiveScreen('PATIENT_RECORD');
@@ -167,6 +187,45 @@ function NavigationHeader({ navigation, route }) {
       <View style={styles.mainContentContainer}>
         {renderContent()}
       </View>
+
+      {/* Prescription preview modal (hosted here so it persists across content changes) */}
+      {previewVisible ? (
+        <View
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            top: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 9999,
+            elevation: 9999,
+          }}
+          pointerEvents="auto"
+        >
+          <TouchableOpacity
+            style={{ position: 'absolute', right: 18, top: 24, zIndex: 10000 }}
+            onPress={() => setPreviewVisible(false)}
+            activeOpacity={0.9}
+          >
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4, elevation: 6 }}>
+              <Ionicons name="close" size={20} color="#FFFFFF" />
+            </View>
+          </TouchableOpacity>
+
+          {previewUri ? (
+            <View style={{ width: '92%', height: '88%', backgroundColor: '#fff', borderRadius: 8, overflow: 'hidden', zIndex: 9999, elevation: 9999 }}>
+              <Image source={{ uri: previewUri }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
+            </View>
+          ) : (
+            <View style={{ padding: 20 }}>
+              <Text style={{ color: '#fff' }}>Loading preview...</Text>
+            </View>
+          )}
+        </View>
+      ) : null}
 
     </SafeAreaView>
   );

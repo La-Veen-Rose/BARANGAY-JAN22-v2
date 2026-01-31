@@ -72,8 +72,114 @@ const fetchJsonWithTimeout = async (url, options, timeoutMs) => {
   }
 };
 
+const parseJsonBestEffort = (input) => {
+  if (!input) return null;
+  if (typeof input === 'object') return input;
+  if (typeof input !== 'string') return null;
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return null;
+  }
+};
+
+const extractEventPayload = (raw) => {
+  // Appwrite event data is typically the document object.
+  // Some environments may wrap it (e.g., { payload: {...} }).
+  if (!raw || typeof raw !== 'object') return {};
+  if (raw.payload && typeof raw.payload === 'object') return raw.payload;
+  return raw;
+};
+
+const resolveSubmittingWorkerDoc = async ({ databases, users, staffDatabaseId, healthWorkersCollectionId, recordedByUserID, payload, log }) => {
+  // 1) Prefer schema: health_workers.auth_user_id == Appwrite user id
+  try {
+    const res = await databases.listDocuments(staffDatabaseId, healthWorkersCollectionId, [
+      sdk.Query.equal('auth_user_id', recordedByUserID),
+      sdk.Query.limit(1),
+    ]);
+    const doc = res.documents?.[0];
+    if (doc) return doc;
+  } catch (e) {
+    log('Worker lookup by auth_user_id failed', { message: e?.message || String(e) });
+  }
+
+  // 2) Fallback: match HealthWorker by recordedByHWID (your app stores this on the patient record)
+  const recordedByHWID = payload?.recordedByHWID;
+  if (recordedByHWID) {
+    // Try common schema: healthWorkerID == recordedByHWID
+    try {
+      const res = await databases.listDocuments(staffDatabaseId, healthWorkersCollectionId, [
+        sdk.Query.equal('healthWorkerID', recordedByHWID),
+        sdk.Query.limit(1),
+      ]);
+      const doc = res.documents?.[0];
+      if (doc) return doc;
+    } catch (e) {
+      log('Worker lookup by healthWorkerID failed', { message: e?.message || String(e) });
+    }
+
+    // If recordedByHWID is actually the HealthWorkers document id, query by $id
+    try {
+      const res = await databases.listDocuments(staffDatabaseId, healthWorkersCollectionId, [
+        sdk.Query.equal('$id', recordedByHWID),
+        sdk.Query.limit(1),
+      ]);
+      const doc = res.documents?.[0];
+      if (doc) return doc;
+    } catch (e) {
+      log('Worker lookup by $id failed', { message: e?.message || String(e) });
+    }
+  }
+
+  // 2) Fallback: resolve user's email then match health_workers.email
+  try {
+    const user = await users.get(recordedByUserID);
+    const email = user?.email;
+    if (email) {
+      const res = await databases.listDocuments(staffDatabaseId, healthWorkersCollectionId, [
+        sdk.Query.equal('email', email),
+        sdk.Query.limit(1),
+      ]);
+      const doc = res.documents?.[0];
+      if (doc) return doc;
+    }
+  } catch (e) {
+    log('Worker lookup by Appwrite user email failed', { message: e?.message || String(e) });
+  }
+
+  // 3) Last-resort: if the record itself stores an email, try that.
+  const fallbackEmail = payload?.recordedByEmail || payload?.bhwEmail || payload?.email;
+  if (fallbackEmail) {
+    try {
+      const res = await databases.listDocuments(staffDatabaseId, healthWorkersCollectionId, [
+        sdk.Query.equal('email', fallbackEmail),
+        sdk.Query.limit(1),
+      ]);
+      const doc = res.documents?.[0];
+      if (doc) return doc;
+    } catch (e) {
+      log('Worker lookup by payload email failed', { message: e?.message || String(e) });
+    }
+  }
+
+  return null;
+};
+
 export default async ({ req, res, log, error }) => {
   try {
+    log('patientStatusChangedPush: start', {
+      executionId: process.env.APPWRITE_FUNCTION_EXECUTION_ID || null,
+      trigger: process.env.APPWRITE_FUNCTION_TRIGGER || null,
+      event: process.env.APPWRITE_FUNCTION_EVENT || null,
+      haveEventData: Boolean(process.env.APPWRITE_FUNCTION_EVENT_DATA),
+      eventDataBytes: process.env.APPWRITE_FUNCTION_EVENT_DATA
+        ? Buffer.byteLength(String(process.env.APPWRITE_FUNCTION_EVENT_DATA), 'utf8')
+        : 0,
+    });
+
     const endpointPick = pickEnv(
       'APPWRITE_FUNCTION_ENDPOINT',
       'APPWRITE_ENDPOINT',
@@ -122,14 +228,42 @@ export default async ({ req, res, log, error }) => {
     const client = new sdk.Client().setEndpoint(endpoint).setProject(projectId).setKey(apiKey);
 
     const databases = new sdk.Databases(client);
+    const users = new sdk.Users(client);
 
-    const payload = JSON.parse(process.env.APPWRITE_FUNCTION_EVENT_DATA || '{}');
+    // Primary: event trigger payload
+    // Fallback: manual console execution where payload is provided as request body
+    const payloadFromEnvRaw = parseJsonBestEffort(process.env.APPWRITE_FUNCTION_EVENT_DATA);
+    const payloadFromBodyRaw = parseJsonBestEffort(req?.body);
+    const payload = extractEventPayload(payloadFromEnvRaw || payloadFromBodyRaw || {});
+
+    log('patientStatusChangedPush: payload source', {
+      fromEnv: Boolean(payloadFromEnvRaw),
+      fromBody: Boolean(!payloadFromEnvRaw && payloadFromBodyRaw),
+      payloadKeys: payload && typeof payload === 'object' ? Object.keys(payload).slice(0, 20) : [],
+      hasId: Boolean(payload?.$id),
+      hasPrevious: Boolean(payload?.$previous),
+    });
+
     const startedAt = Date.now();
     const previous = payload.$previous || {};
 
     const documentId = payload.$id;
     const newStatus = normalizeStatus(payload.status);
     const oldStatus = normalizeStatus(previous.status);
+
+    log('Event received', {
+      event: process.env.APPWRITE_FUNCTION_EVENT || null,
+      recordId: documentId || null,
+      status: payload?.status || null,
+      recordedByUserID: payload?.recordedByUserID || null,
+      recordedByHWID: payload?.recordedByHWID || null,
+    });
+
+    if (!documentId) {
+      return res.json({
+        message: 'No document payload received. If running manually, pass the document JSON in the request body. If expecting event trigger, verify function is attached to the database update event.',
+      });
+    }
 
     // Only act on transitions to Verified/Terminated
     if (!newStatus || (newStatus !== 'Verified' && newStatus !== 'Terminated')) {
@@ -151,35 +285,45 @@ export default async ({ req, res, log, error }) => {
       return res.json({ message: 'Missing staff database or collection id; skipping.' });
     }
 
-    const workerRes = await databases.listDocuments(staffDatabaseId, healthWorkersCollectionId, [
-      sdk.Query.equal('auth_user_id', recordedByUserID),
-      sdk.Query.limit(1),
-    ]);
-
-    const workerDoc = workerRes.documents?.[0];
+    const workerDoc = await resolveSubmittingWorkerDoc({
+      databases,
+      users,
+      staffDatabaseId,
+      healthWorkersCollectionId,
+      recordedByUserID,
+      payload,
+      log,
+    });
     const tokens = collectTokens(workerDoc);
 
     if (!tokens.length) {
-      return res.json({ message: 'No Expo push tokens found for submitting BHW.' });
+      return res.json({
+        message: 'No Expo push tokens found for submitting BHW.',
+        workerFound: Boolean(workerDoc),
+        workerId: workerDoc?.$id || null,
+      });
     }
 
-    const submissionID = payload.submissionID || '';
-    const patientName = [payload.lastName, payload.firstName].filter(Boolean).join(', ');
+    const statusMessages = {
+      Terminated: {
+        title: 'Patient record has been terminated',
+        body: 'The attending physician closed this case; review the notes for next steps.',
+      },
+      Verified: {
+        title: 'Patient record has been verified',
+        body: 'The physician verified the record details.',
+      },
+    };
 
-    let title;
-    let body;
-    if (newStatus === 'Verified') {
-      title = 'Record Verified';
-      body = submissionID
-        ? `Submission ${submissionID} has been verified.`
-        : 'A submitted patient record has been verified.';
-    } else {
-      title = 'Record Terminated';
-      const reason = payload.terminateReason || payload.terminationReason || '';
-      body = submissionID
-        ? `Submission ${submissionID} was terminated.${reason ? ' Reason: ' + reason : ''}`
-        : `A submitted patient record was terminated.${reason ? ' Reason: ' + reason : ''}`;
-    }
+    const { title, body } = statusMessages[newStatus] || statusMessages.Verified;
+
+    log('patientStatusChangedPush: notification copy', {
+      recordId: documentId,
+      newStatus,
+      title,
+      body,
+      tokenCount: tokens.length,
+    });
 
     const expoMessages = tokens.map((token) => ({
       to: token,
@@ -190,8 +334,6 @@ export default async ({ req, res, log, error }) => {
         type: 'patient_status_changed',
         recordId: documentId,
         focusStatus: newStatus,
-        submissionID,
-        patientName,
       },
     }));
 

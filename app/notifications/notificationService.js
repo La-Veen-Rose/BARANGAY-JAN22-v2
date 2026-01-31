@@ -60,6 +60,16 @@ export async function registerForPushNotificationsAsync() {
   }
 }
 
+// Ensure notifications are displayed while app is foregrounded
+// (Expo does not show alerts by default in the foreground).
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
+
 // Store the Expo push token in the logged-in health worker profile document
 export async function savePushTokenForCurrentUser(expoPushToken) {
   if (!expoPushToken) return;
