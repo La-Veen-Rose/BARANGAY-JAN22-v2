@@ -153,9 +153,9 @@ function MainDashboard({ navigation, openSidebar }) {
                 return true; // block default behavior so we can confirm logout
             };
 
-            BackHandler.addEventListener('hardwareBackPress', onBackPress);
+            const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
 
-            return () => BackHandler.removeEventListener('hardwareBackPress', onBackPress);
+            return () => subscription.remove();
         }, [])
     );
 
