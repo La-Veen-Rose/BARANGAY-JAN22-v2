@@ -5,9 +5,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold } from "@expo-google-fonts/poppins";
 
 // Appwrite
-import { databases, appwriteConfig, account } from './appwriteConfig';
-import client from './appwriteConfig';
-import { Query } from 'appwrite';
+import { databases, appwriteConfig, account, Query } from './appwriteConfig';
 
 // SVG Logo
 import RavenLogo from "../assets/raven-logo-blue-fang.svg";
