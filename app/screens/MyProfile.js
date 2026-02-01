@@ -9,6 +9,7 @@ import { databases, appwriteConfig, account, Query } from './appwriteConfig';
 
 // SVG Logo
 import RavenLogo from "../assets/raven-logo-blue-fang.svg";
+import { getCurrentStaffProfile, STAFF_ROLE } from './staffProfileService';
 
 export default function MyProfile({ navigation, route }) {
     const [fontsLoaded] = useFonts({
@@ -20,6 +21,7 @@ export default function MyProfile({ navigation, route }) {
     });
     
     const [healthWorker, setHealthWorker] = useState(null);
+    const [staffRole, setStaffRole] = useState(null);
     const [userPhone, setUserPhone] = useState("");
     const [userEmail, setUserEmail] = useState("");
     const [isLoading, setIsLoading] = useState(true);
@@ -65,48 +67,59 @@ export default function MyProfile({ navigation, route }) {
         }, [])
     );
 
+    const fetchPhysicianProfile = async (userId) => {
+        let profile = null;
+        try {
+            const res = await databases.listDocuments(
+                appwriteConfig.staffDatabaseId,
+                appwriteConfig.physicianAccountsCollectionId,
+                [Query.equal("auth_user_id", userId), Query.limit(1)]
+            );
+            if (res.total > 0) profile = res.documents[0];
+        } catch (e) {
+            if (e?.name === 'AppwriteException' && /not authorized/i.test(e?.message || '')) {
+                try {
+                    profile = await databases.getDocument(
+                        appwriteConfig.staffDatabaseId,
+                        appwriteConfig.physicianAccountsCollectionId,
+                        userId
+                    );
+                } catch (_) {
+                    // ignore fallback failure
+                }
+            } else {
+                throw e;
+            }
+        }
+        return profile;
+    };
+
     const fetchHealthWorkerProfile = async (skipLoading = false) => {
         try {
             // Only show loading on initial fetch, not on background refreshes
             if (!skipLoading) {
                 setIsLoading(true);
             }
+            setError(null);
             
             // Get current logged-in user
             const user = await account.get();
             setUserPhone(user.phone || "N/A");
             setUserEmail(user.email || "N/A");
             setNewPhone(user.phone || "");
+            const staff = await getCurrentStaffProfile();
+            setStaffRole(staff.role);
 
-            // Fetch physician account profile from database
-            let profile = null;
-            try {
-                const res = await databases.listDocuments(
-                    appwriteConfig.staffDatabaseId,
-                    appwriteConfig.physicianAccountsCollectionId,
-                    [Query.equal("auth_user_id", user.$id), Query.limit(1)]
-                );
-                if (res.total > 0) profile = res.documents[0];
-            } catch (e) {
-                if (e?.name === 'AppwriteException' && /not authorized/i.test(e?.message || '')) {
-                    try {
-                        profile = await databases.getDocument(
-                            appwriteConfig.staffDatabaseId,
-                            appwriteConfig.physicianAccountsCollectionId,
-                            user.$id
-                        );
-                    } catch (_) {
-                        // ignore fallback failure
-                    }
+            if (staff.role === STAFF_ROLE.PHYSICIAN) {
+                const physicianProfile = await fetchPhysicianProfile(user.$id);
+                if (physicianProfile) {
+                    setHealthWorker(physicianProfile);
                 } else {
-                    throw e;
+                    setHealthWorker(staff.profile || null);
+                    setError("Physician profile not found.");
                 }
-            }
-
-            if (profile) {
-                setHealthWorker(profile);
             } else {
-                setError("Physician profile not found.");
+                setHealthWorker(staff.profile || null);
             }
         } catch (err) {
             console.error("Error fetching profile:", err);
@@ -203,13 +216,28 @@ export default function MyProfile({ navigation, route }) {
     };
 
     // Display values
-    // Display values
+    const isPhysician = staffRole === STAFF_ROLE.PHYSICIAN;
+
+    // Physician display values
     const displayLicenseNo = healthWorker?.License_No || healthWorker?.licenseNo || "N/A";
-    const displayName = healthWorker?.Physician_Name || healthWorker?.fullName || healthWorker?.name || "N/A";
-    const displayEmail = userEmail || "N/A";
     const displayDesignation = healthWorker?.designation || healthWorker?.Designation || "N/A";
-    const displayPhone = userPhone || "N/A";
     const displayOffice = healthWorker?.office || healthWorker?.Office || "N/A";
+
+    // Shared display values
+    const displayName = isPhysician
+        ? (healthWorker?.Physician_Name || healthWorker?.fullName || healthWorker?.name || "N/A")
+        : (healthWorker?.fullName || "N/A");
+    const displayEmail = isPhysician
+        ? (userEmail || "N/A")
+        : (healthWorker?.email || userEmail || "N/A");
+    const displayPhone = userPhone || "N/A";
+    const displayRole = healthWorker?.role || "BHW";
+    const displayHWID = healthWorker?.healthWorkerID || "N/A";
+
+    // Location for BHWs
+    const purok = healthWorker?.purok || "";
+    const barangay = healthWorker?.barangay || "";
+    const displayLocation = [purok, barangay, "Tagum City"].filter(Boolean).join(", ");
 
     // Wait for fonts to load
     if (!fontsLoaded) {
@@ -244,11 +272,23 @@ export default function MyProfile({ navigation, route }) {
             >
                 {/* INFO CARD */}
                 <View style={styles.infoCard}>
-                    <ProfileField icon="id-card-outline" label="License No" value={displayLicenseNo} />
-                <ProfileField icon="person-outline" label="Name" value={displayName} />
-                <ProfileField icon="mail-outline" label="Email" value={displayEmail} />
-                <ProfileField icon="people-outline" label="Designation" value={displayDesignation} />
-                <ProfileField icon="location-outline" label="Office" value={displayOffice} />
+                    {isPhysician ? (
+                        <>
+                            <ProfileField icon="id-card-outline" label="License No" value={displayLicenseNo} />
+                            <ProfileField icon="person-outline" label="Name" value={displayName} />
+                            <ProfileField icon="mail-outline" label="Email" value={displayEmail} />
+                            <ProfileField icon="people-outline" label="Designation" value={displayDesignation} />
+                            <ProfileField icon="location-outline" label="Office" value={displayOffice} />
+                        </>
+                    ) : (
+                        <>
+                            <ProfileField icon="id-card-outline" label="Health Worker ID" value={displayHWID} />
+                            <ProfileField icon="person-outline" label="Name" value={displayName} />
+                            <ProfileField icon="mail-outline" label="Email" value={displayEmail} />
+                            <ProfileField icon="people-outline" label="Role" value={displayRole} />
+                            <ProfileField icon="location-outline" label="Barangay Health Station" value={displayLocation || "N/A"} />
+                        </>
+                    )}
                 
                 {/* Editable Password Field */}
                 {isEditing ? (

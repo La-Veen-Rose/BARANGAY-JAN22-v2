@@ -1078,7 +1078,7 @@ function PatientRecordContent({ patient, onOpenPrescription }) {
                     <Text style={styles.footerValue}>{patientData.submissionId}</Text>
                 </View>
                 <View style={styles.footerRow}>
-                    <Text style={styles.footerLabel}>Patient Record ID (after verification) :</Text>
+                    <Text style={styles.footerLabel}>Patient Record ID :</Text>
                     <Text style={styles.footerValue}>{patientData.patientRecordId || '—'}</Text>
                 </View>
                 <View style={styles.footerRow}>

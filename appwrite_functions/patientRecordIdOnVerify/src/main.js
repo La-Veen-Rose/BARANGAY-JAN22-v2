@@ -42,16 +42,22 @@ const generateBarangayCode = (barangayNameOrCode) => {
   }
 
   const trimmed = String(barangayNameOrCode).trim();
+  const words = trimmed.split(/\s+/).filter(Boolean);
 
-  // If caller already passed a code (e.g., "MAN"), trust it.
-  if (/^[A-Z0-9]{2,10}$/i.test(trimmed) && !/\s/.test(trimmed)) {
-    return trimmed.toUpperCase();
+  // Normalize each word to alphanumeric only so punctuation doesn't affect the code.
+  const cleanWord = (w) => String(w).replace(/[^A-Za-z0-9]/g, '');
+  const cleanWords = words.map(cleanWord).filter(Boolean);
+
+  if (cleanWords.length === 0) {
+    throw new Error('Barangay is required to generate code');
   }
 
-  const words = trimmed.split(/\s+/);
-  let code = words[0].substring(0, 3);
-  for (let i = 1; i < words.length; i += 1) {
-    code += words[i].charAt(0);
+  // Rules:
+  // - 1 word: first 3 letters
+  // - 2+ words: first 3 letters of first word + 1st letter of each subsequent word
+  let code = cleanWords[0].substring(0, 3);
+  for (let i = 1; i < cleanWords.length; i += 1) {
+    code += cleanWords[i].charAt(0);
   }
   return code.toUpperCase();
 };
@@ -105,11 +111,14 @@ module.exports = async ({ req, res, log, error }) => {
     const endpointPick = pickEnv(
       'APPWRITE_FUNCTION_ENDPOINT',
       'APPWRITE_ENDPOINT',
+      'APPWRITE_ENDPOINT_ID',
       'APPWRITE_API_ENDPOINT',
       'APPWRITE_URL'
     );
     const projectPick = pickEnv('APPWRITE_FUNCTION_PROJECT_ID', 'APPWRITE_PROJECT_ID');
-    const apiKeyPick = pickEnv('APPWRITE_FUNCTION_API_KEY', 'APPWRITE_API_KEY');
+    // Prefer explicit API key (user-managed scopes) when provided.
+    // Fall back to runtime key generated from Function Scopes.
+    const apiKeyPick = pickEnv('APPWRITE_API_KEY', 'APPWRITE_FUNCTION_API_KEY');
 
     const endpoint = normalizeEndpoint(endpointPick.value);
     const projectId = projectPick.value;
@@ -121,6 +130,7 @@ module.exports = async ({ req, res, log, error }) => {
       haveApiKey: Boolean(apiKey),
       endpointKeyUsed: endpointPick.key || null,
       projectKeyUsed: projectPick.key || null,
+      apiKeyKeyUsed: apiKeyPick.key || null,
     });
 
     if (!endpoint || !projectId || !apiKey) {
@@ -132,6 +142,7 @@ module.exports = async ({ req, res, log, error }) => {
           haveApiKey: Boolean(apiKey),
           endpointKeyUsed: endpointPick.key || null,
           projectKeyUsed: projectPick.key || null,
+          apiKeyKeyUsed: apiKeyPick.key || null,
         },
         500
       );

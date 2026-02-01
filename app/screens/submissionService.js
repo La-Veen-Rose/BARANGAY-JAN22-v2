@@ -14,28 +14,29 @@ import { databases, appwriteConfig, ID, Query } from './appwriteConfig';
  * @returns {string} - The generated barangay code
  */
 const generateBarangayCode = (barangayName) => {
-    if (!barangayName || barangayName.trim() === '') {
+    if (!barangayName || String(barangayName).trim() === '') {
         throw new Error('Barangay name is required to generate code');
     }
 
-    const trimmed = barangayName.trim();
+    const trimmed = String(barangayName).trim();
+    const words = trimmed.split(/\s+/).filter(Boolean);
 
-    // If caller already passed a code (e.g., "MAN"), trust it.
-    // This helps when you maintain a fixed barangayCode column.
-    if (/^[A-Z0-9]{2,10}$/i.test(trimmed) && !/\s/.test(trimmed)) {
-        return trimmed.toUpperCase();
+    // Normalize each word to alphanumeric only so punctuation doesn't affect the code.
+    const cleanWord = (w) => String(w).replace(/[^A-Za-z0-9]/g, '');
+    const cleanWords = words.map(cleanWord).filter(Boolean);
+
+    if (cleanWords.length === 0) {
+        throw new Error('Barangay name is required to generate code');
     }
-    
-    const words = trimmed.split(/\s+/);
-    
-    // Start with first 3 letters of first word
-    let code = words[0].substring(0, 3);
-    
-    // Add first letter of each subsequent word
-    for (let i = 1; i < words.length; i++) {
-        code += words[i].charAt(0);
+
+    // Rules:
+    // - 1 word: first 3 letters
+    // - 2+ words: first 3 letters of first word + 1st letter of each subsequent word
+    let code = cleanWords[0].substring(0, 3);
+    for (let i = 1; i < cleanWords.length; i++) {
+        code += cleanWords[i].charAt(0);
     }
-    
+
     return code.toUpperCase();
 };
 
