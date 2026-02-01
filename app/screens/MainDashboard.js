@@ -10,6 +10,7 @@ import {
     ActivityIndicator,
     Alert,
     ScrollView,
+    BackHandler,
 } from "react-native";
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -17,6 +18,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { databases, appwriteConfig, account, Query } from './appwriteConfig';
 import { fetchAnimalBiteReportData } from './reportAnalyticsService';
 import { getCurrentStaffProfile, getStaffHeaderLocation, STAFF_ROLE } from './staffProfileService';
+import LogOut from './LogOut';
 
 const { width } = Dimensions.get('window');
 
@@ -43,6 +45,7 @@ function MainDashboard({ navigation, openSidebar }) {
     const [annualTrend, setAnnualTrend] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [logoutVisible, setLogoutVisible] = useState(false);
 
     // ✅ GET LOGGED IN STAFF PROFILE (BHW or Physician)
     const fetchWorkerProfile = useCallback(async () => {
@@ -142,6 +145,24 @@ function MainDashboard({ navigation, openSidebar }) {
             }
         }, [workerProfile, fetchDashboardData])
     );
+
+    useFocusEffect(
+        useCallback(() => {
+            const onBackPress = () => {
+                setLogoutVisible(true);
+                return true; // block default behavior so we can confirm logout
+            };
+
+            BackHandler.addEventListener('hardwareBackPress', onBackPress);
+
+            return () => BackHandler.removeEventListener('hardwareBackPress', onBackPress);
+        }, [])
+    );
+
+    const handleConfirmLogout = useCallback(() => {
+        setLogoutVisible(false);
+        navigation.replace('SelectRole');
+    }, [navigation]);
 
     // ❌ ERROR HANDLING
     if (error) {
@@ -264,6 +285,12 @@ function MainDashboard({ navigation, openSidebar }) {
 
                 <View style={styles.bottomSpacing} />
             </ScrollView>
+
+            <LogOut
+                visible={logoutVisible}
+                onCancel={() => setLogoutVisible(false)}
+                onConfirm={handleConfirmLogout}
+            />
 
         </ImageBackground>
     );
