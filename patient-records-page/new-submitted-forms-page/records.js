@@ -278,14 +278,6 @@ const Records = () => {
             const patientRecordId = patient?.patientRecordId;
             const submissionId = patient?.submissionId || patientRecordId || patientId;
 
-            const passiveSelections = [];
-            if (prescriptionData?.passiveVaccineERIG) passiveSelections.push("ERIG");
-            if (prescriptionData?.passiveVaccineHRIG) passiveSelections.push("HRIG");
-
-            const activeSelections = [];
-            if (prescriptionData?.activeVaccinePVRV) activeSelections.push("PVRV");
-            if (prescriptionData?.activeVaccinePCECV) activeSelections.push("PCECV");
-
             // Filter out fields not defined in the Appwrite schema (checkbox fields and signature blob)
             const { 
                 passiveVaccineERIG, 
@@ -294,24 +286,19 @@ const Records = () => {
                 activeVaccinePCECV, 
                 physicianSignature,
                 vaxStatus,
+                // Deprecated fields removed from schema
+                passiveVaccine,
+                passiveVaccineUnits,
+                activeVaccine,
+                activeVaccineOther,
+                antibioticsText,
+                antiInflammatoryMedication,
                 ...safePrescriptionData 
             } = prescriptionData || {};
-
-            // Normalize numeric fields to match Appwrite attribute types
-            if (Object.prototype.hasOwnProperty.call(safePrescriptionData, "passiveVaccineUnits")) {
-                const parsedUnits = parseInt(safePrescriptionData.passiveVaccineUnits, 10);
-                if (Number.isNaN(parsedUnits)) {
-                    delete safePrescriptionData.passiveVaccineUnits;
-                } else {
-                    safePrescriptionData.passiveVaccineUnits = parsedUnits;
-                }
-            }
 
             const updateData = {
                 status: "verified",
                 ...safePrescriptionData,
-                passiveVaccine: passiveSelections.length ? passiveSelections : [],
-                activeVaccine: activeSelections.length ? activeSelections : [],
                 vaxStatus: null,
             };
 
@@ -352,8 +339,6 @@ const Records = () => {
             updateMobileStatus(submissionId, "verified", {
                 prescription: {
                     ...prescriptionData,
-                    passiveVaccine: passiveSelections.length ? passiveSelections : [],
-                    activeVaccine: activeSelections.length ? activeSelections : [],
                 },
             });
 

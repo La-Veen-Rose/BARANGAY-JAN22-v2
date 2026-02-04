@@ -29,6 +29,15 @@ const generateBarangayCode = (barangayName) => {
         throw new Error('Barangay name is required to generate code');
     }
 
+    // Guard: Some inputs look like a single word but are stored with whitespace
+    // between characters (or include invisible whitespace), which would otherwise
+    // make `cleanWords` look like many 1-char "words" and produce the full name.
+    // Example: "M A N K I L A M" -> should still be "MAN".
+    if (cleanWords.length > 1 && cleanWords.every(w => w.length === 1)) {
+        const collapsed = cleanWords.join('');
+        return collapsed.substring(0, 3).toUpperCase();
+    }
+
     // Rules:
     // - 1 word: first 3 letters
     // - 2+ words: first 3 letters of first word + 1st letter of each subsequent word

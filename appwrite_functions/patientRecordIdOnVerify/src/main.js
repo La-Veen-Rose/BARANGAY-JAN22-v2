@@ -2,6 +2,8 @@
 // Trigger: databases.*.collections.*.documents.*.update (patientRecords collection)
 // Runtime: Node 18+
 
+const FUNCTION_VERSION = '2026-02-05_01';
+
 const sdk = require('node-appwrite');
 
 const pickEnv = (...keys) => {
@@ -52,6 +54,15 @@ const generateBarangayCode = (barangayNameOrCode) => {
     throw new Error('Barangay is required to generate code');
   }
 
+  // Guard: Some inputs look like a single word but are stored with whitespace
+  // between characters (or include invisible whitespace), which would otherwise
+  // make `cleanWords` look like many 1-char "words" and produce the full name.
+  // Example: "M A N K I L A M" -> should still be "MAN".
+  if (cleanWords.length > 1 && cleanWords.every((w) => w.length === 1)) {
+    const collapsed = cleanWords.join('');
+    return collapsed.substring(0, 3).toUpperCase();
+  }
+
   // Rules:
   // - 1 word: first 3 letters
   // - 2+ words: first 3 letters of first word + 1st letter of each subsequent word
@@ -60,6 +71,31 @@ const generateBarangayCode = (barangayNameOrCode) => {
     code += cleanWords[i].charAt(0);
   }
   return code.toUpperCase();
+};
+
+const normalizeBarangayWords = (barangayNameOrCode) => {
+  if (!barangayNameOrCode || String(barangayNameOrCode).trim() === '') return [];
+
+  const trimmed = String(barangayNameOrCode).trim();
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  const cleanWord = (w) => String(w).replace(/[^A-Za-z0-9]/g, '');
+  const cleanWords = words.map(cleanWord).filter(Boolean);
+
+  // Treat per-letter spaced input as a single word.
+  if (cleanWords.length > 1 && cleanWords.every((w) => w.length === 1)) {
+    return [cleanWords.join('')];
+  }
+
+  return cleanWords;
+};
+
+const parsePatientRecordId = (value) => {
+  if (!value) return null;
+  const raw = String(value).trim();
+  const parts = raw.split('-');
+  if (parts.length !== 4) return null;
+  if (parts[0] !== 'PR') return null;
+  return { raw, year: parts[1], barangayCode: parts[2], suffix: parts[3] };
 };
 
 const encodeSuffix = (counterValue) => {
@@ -102,6 +138,7 @@ module.exports = async ({ req, res, log, error }) => {
     // Always emit at least one log line so that "No logs found" is actionable.
     // (Avoid printing secrets; only booleans + key names.)
     log('patientRecordIdOnVerify: start', {
+      functionVersion: FUNCTION_VERSION,
       haveEventData: Boolean(process.env.APPWRITE_FUNCTION_EVENT_DATA),
       event: process.env.APPWRITE_FUNCTION_EVENT || null,
       executionId: process.env.APPWRITE_FUNCTION_EXECUTION_ID || null,
@@ -179,13 +216,49 @@ module.exports = async ({ req, res, log, error }) => {
     const envEventData = process.env.APPWRITE_FUNCTION_EVENT_DATA;
     const payloadFromEnv = parseJsonBestEffort(envEventData);
     const payloadFromBody = parseJsonBestEffort(req?.body);
-    const payload = payloadFromEnv || payloadFromBody || {};
+    let payload = payloadFromEnv || payloadFromBody || {};
 
     log('patientRecordIdOnVerify: payload source', {
       fromEnv: Boolean(payloadFromEnv),
       fromBody: Boolean(!payloadFromEnv && payloadFromBody),
       hasId: Boolean(payload?.$id),
     });
+
+    // If the function is executed manually, users often only pass `{ "$id": "..." }`.
+    // Hydrate the full document from Appwrite so `status`, `barangayCode`, etc. are present.
+    if (
+      payload &&
+      typeof payload === 'object' &&
+      payload?.$id &&
+      (!payload?.status || (!payload?.barangayCode && !payload?.barangay))
+    ) {
+      try {
+        const hydrated = await databases.getDocument(
+          patientDatabaseId,
+          patientRecordsCollectionId,
+          String(payload.$id)
+        );
+
+        payload = {
+          ...(hydrated || {}),
+          ...(payload || {}),
+        };
+
+        log('patientRecordIdOnVerify: hydrated payload from DB', {
+          functionVersion: FUNCTION_VERSION,
+          recordId: String(payload.$id),
+          haveStatus: Boolean(payload?.status),
+          haveBarangayCode: Boolean(payload?.barangayCode),
+          haveBarangay: Boolean(payload?.barangay),
+        });
+      } catch (e) {
+        log('patientRecordIdOnVerify: hydration failed; continuing with provided payload', {
+          functionVersion: FUNCTION_VERSION,
+          recordId: String(payload.$id),
+          message: String(e?.message || e),
+        });
+      }
+    }
 
     if (!payload || typeof payload !== 'object') {
       return res.json({ error: 'No valid payload (event data or request body).' }, 400);
@@ -202,7 +275,39 @@ module.exports = async ({ req, res, log, error }) => {
 
     // Avoid re-running for already-assigned ids.
     const existingId = firstString(payload?.patientRecordId || payload?.patientRecordID);
+
+    const barangayValue = firstString(payload?.barangayCode) || firstString(payload?.barangay);
+    const barangayWords = normalizeBarangayWords(barangayValue);
+    const isSingleWordBarangay = barangayWords.length === 1;
+    const expectedBarangayCode = generateBarangayCode(barangayValue);
+
+    log('patientRecordIdOnVerify: barangay derivation', {
+      functionVersion: FUNCTION_VERSION,
+      barangayValue: barangayValue || null,
+      barangayWords,
+      isSingleWordBarangay,
+      expectedBarangayCode,
+      existingPatientRecordId: existingId || null,
+    });
+
+    const parsedExisting = parsePatientRecordId(existingId);
+    const existingBarangaySegment = parsedExisting?.barangayCode ? String(parsedExisting.barangayCode).toUpperCase() : '';
+    const isLegacySingleWordBug =
+      Boolean(existingId) &&
+      isSingleWordBarangay &&
+      Boolean(existingBarangaySegment) &&
+      existingBarangaySegment !== expectedBarangayCode &&
+      existingBarangaySegment === String(barangayWords[0] || '').toUpperCase();
+
     if (existingId) {
+      log('patientRecordIdOnVerify: existing id check', {
+        functionVersion: FUNCTION_VERSION,
+        existingBarangaySegment: existingBarangaySegment || null,
+        isLegacySingleWordBug,
+      });
+    }
+
+    if (existingId && !isLegacySingleWordBug) {
       return res.json({ message: 'patientRecordId already exists; skipping.', patientRecordId: existingId });
     }
 
@@ -212,19 +317,24 @@ module.exports = async ({ req, res, log, error }) => {
     const isVerifyTransition = statusPrev !== 'verified';
     const isNewPrescription = Boolean(newRx) && newRx !== prevRx;
 
-    if (!isVerifyTransition && !isNewPrescription) {
+    if (!isVerifyTransition && !isNewPrescription && !isLegacySingleWordBug) {
       return res.json({ message: 'Verified update without transition/new prescription; skipping.' });
     }
 
-    const barangayValue = firstString(payload?.barangayCode) || firstString(payload?.barangay);
-    const barangayCode = generateBarangayCode(barangayValue);
+    const barangayCode = expectedBarangayCode;
 
     // Year created = year submitted/created (not year verified)
     const createdAtRaw = payload?.dateSubmitted || payload?.$createdAt || payload?.createdAt;
     const createdAt = createdAtRaw ? new Date(createdAtRaw) : new Date();
     const yearCreated = Number.isFinite(createdAt.getTime()) ? createdAt.getFullYear() : new Date().getFullYear();
 
-    log('Generating patientRecordId...', { barangayCode, yearCreated, recordId: payload?.$id });
+    log('Generating patientRecordId...', {
+      barangayCode,
+      yearCreated,
+      recordId: payload?.$id,
+      correctingLegacySingleWord: isLegacySingleWordBug,
+      existingPatientRecordId: isLegacySingleWordBug ? parsedExisting?.raw : null,
+    });
 
     const maxAttempts = 5;
 

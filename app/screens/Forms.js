@@ -56,11 +56,6 @@ const initialFormData = {
     tetanusImmunization: null, tetanusDateGiven: '', HTIG: null, htigDateGiven: '',
     categoryOfExposure: null,
 
-    // Section 5
-    assessmentDiagnosis: '', plan: [], passiveVaccine: [],
-    passiveVaccineUnits: '', activeVaccine: [], activeVaccineOther: '',
-    antibioticsText: '', antiInflammatoryMedication: '', physicianName: '',
-
     // Section 6
     woundImages: [],
 
@@ -333,7 +328,19 @@ const Forms = ({ navigation }) => {
             // Convert integer fields
             const formattedData = {
                 ...(() => {
-                    const { hasSuffix, passiveVaccineUnitsCombined, passiveVaccineUnitType, ...rest } = formData;
+                    // Strip deprecated fields that were removed from Appwrite schema.
+                    const {
+                        hasSuffix,
+                        passiveVaccineUnitsCombined,
+                        passiveVaccineUnitType,
+                        passiveVaccine,
+                        passiveVaccineUnits,
+                        activeVaccine,
+                        activeVaccineOther,
+                        antibioticsText,
+                        antiInflammatoryMedication,
+                        ...rest
+                    } = formData;
                     return rest;
                 })(),
                 // Do NOT include hasSuffix, passiveVaccineUnitsCombined, or passiveVaccineUnitType (display-only fields) in the data sent to Appwrite
@@ -342,7 +349,6 @@ const Forms = ({ navigation }) => {
                 weight: parseInt(formData.weight) || 0,
                 height: parseInt(formData.height) || 0,
                 temp: parseInt(formData.temp) || 0,
-                passiveVaccineUnits: parseInt(formData.passiveVaccineUnits) || 0,
                 // Store ONLY file IDs, not URLs (URLs are derivable from fileIds)
                 woundImages: woundImageIds,
             };

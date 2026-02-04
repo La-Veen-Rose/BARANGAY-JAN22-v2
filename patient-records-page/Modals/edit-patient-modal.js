@@ -218,6 +218,14 @@ const EditPatientModal = ({
         }
       }
 
+      // Strip deprecated fields removed from Appwrite schema
+      delete updateData.passiveVaccine;
+      delete updateData.passiveVaccineUnits;
+      delete updateData.activeVaccine;
+      delete updateData.activeVaccineOther;
+      delete updateData.antibioticsText;
+      delete updateData.antiInflammatoryMedication;
+
       await databases.updateDocument(
         databaseId,
         collectionId,
