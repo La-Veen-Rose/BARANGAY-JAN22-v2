@@ -171,8 +171,13 @@ function Sidebar({ closeSidebar, workerProfile: passedWorkerProfile }) {
       <LogOut
         visible={logoutVisible}
         onCancel={() => setLogoutVisible(false)}
-        onConfirm={() => {
+        onConfirm={async () => {
           setLogoutVisible(false);
+          try {
+            await account.deleteSession('current');
+          } catch (e) {
+            // ignore if already logged out
+          }
           navigation.replace("SelectRole");
         }}
       />

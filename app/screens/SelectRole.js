@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -13,16 +13,56 @@ import {
     Platform,
 } from "react-native";
 import Checkbox from "expo-checkbox";
+import * as FileSystem from 'expo-file-system/legacy';
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-icons";
 import { account, appwriteConfig, databases, Query } from "./appwriteConfig";
 import { registerForPushNotificationsAsync, savePushTokenForCurrentUser } from "../notifications/notificationService";
 import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold } from "@expo-google-fonts/poppins";
+import { useFocusEffect } from '@react-navigation/native';
 
 const { width, height } = Dimensions.get('window');
 
 const ROLE = {
     PHYSICIAN: 'physician',
     BHW: 'bhw',
+};
+
+const REMEMBER_KEYS = {
+    enabled: 'rememberMeEnabled',
+    lastRole: 'rememberMeLastRole',
+    bhwId: 'rememberedBhwHealthWorkerId',
+    physicianEmail: 'rememberedPhysicianEmail',
+};
+
+const REMEMBER_FILE_NAME = 'remember-me.json';
+
+const getRememberFilePath = () => {
+    const baseDir = FileSystem.documentDirectory || '';
+    return `${baseDir}${REMEMBER_FILE_NAME}`;
+};
+
+const fileStoreRead = async () => {
+    try {
+        const path = getRememberFilePath();
+        if (!path) return {};
+        const info = await FileSystem.getInfoAsync(path);
+        if (!info.exists) return {};
+        const content = await FileSystem.readAsStringAsync(path);
+        const parsed = JSON.parse(content || '{}');
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+        return {};
+    }
+};
+
+const fileStoreWrite = async (nextData) => {
+    try {
+        const path = getRememberFilePath();
+        if (!path) return;
+        await FileSystem.writeAsStringAsync(path, JSON.stringify(nextData || {}));
+    } catch {
+        // ignore
+    }
 };
 
 const buildWorkerContextFromSession = async (authUser) => {
@@ -79,30 +119,44 @@ const buildWorkerContextFromSession = async (authUser) => {
 };
 
 const safeSecureGet = async (key) => {
-    if (Platform.OS === 'web') return null;
-    try {
-        return await SecureStore.getItemAsync(key);
-    } catch (e) {
-        console.log('SecureStore get failed:', e);
-        return null;
+    if (Platform.OS === 'web') {
+        try {
+            return window?.localStorage?.getItem(key) ?? null;
+        } catch {
+            return null;
+        }
     }
+    const data = await fileStoreRead();
+    return data[key] ?? null;
 };
 
 const safeSecureSet = async (key, value) => {
-    if (Platform.OS === 'web') return;
-    try {
-        await SecureStore.setItemAsync(key, value);
-    } catch (e) {
-        console.log('SecureStore set failed:', e);
+    if (Platform.OS === 'web') {
+        try {
+            window?.localStorage?.setItem(key, String(value));
+        } catch {
+            // ignore
+        }
+        return;
     }
+    const data = await fileStoreRead();
+    data[key] = value;
+    await fileStoreWrite(data);
 };
 
 const safeSecureDelete = async (key) => {
-    if (Platform.OS === 'web') return;
-    try {
-        await SecureStore.deleteItemAsync(key);
-    } catch (e) {
-        console.log('SecureStore delete failed:', e);
+    if (Platform.OS === 'web') {
+        try {
+            window?.localStorage?.removeItem(key);
+        } catch {
+            // ignore
+        }
+        return;
+    }
+    const data = await fileStoreRead();
+    if (Object.prototype.hasOwnProperty.call(data, key)) {
+        delete data[key];
+        await fileStoreWrite(data);
     }
 };
 
@@ -129,6 +183,11 @@ function SelectRole({ navigation }) {
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [rememberMe, setRememberMe] = useState(false);
+    const rememberMeRef = useRef(false);
+
+    useEffect(() => {
+        rememberMeRef.current = rememberMe;
+    }, [rememberMe]);
 
     const deleteCurrentSession = async () => {
         try {
@@ -139,31 +198,115 @@ function SelectRole({ navigation }) {
         }
     };
 
-    useEffect(() => {
-        const restoreSessionIfRemembered = async () => {
-            setIsLoading(true);
-            try {
-                const authUser = await account.get();
-                const prefs = authUser.prefs || {};
+    const clearRememberedIdentifiers = async () => {
+        rememberMeRef.current = false;
+        await safeSecureDelete(REMEMBER_KEYS.enabled);
+        await safeSecureDelete(REMEMBER_KEYS.lastRole);
+        await safeSecureDelete(REMEMBER_KEYS.bhwId);
+        await safeSecureDelete(REMEMBER_KEYS.physicianEmail);
+    };
 
-                if (prefs.rememberMe !== true) {
-                    await deleteCurrentSession();
-                    return;
-                }
+    const loadRememberedIdentifierForRole = async (nextRole, options = {}) => {
+        const { allowEmpty = false } = options;
+        const key = nextRole === ROLE.PHYSICIAN ? REMEMBER_KEYS.physicianEmail : REMEMBER_KEYS.bhwId;
+        const stored = (await safeSecureGet(key)) || '';
+        if (stored) {
+            setIdOrEmail(stored);
+            return;
+        }
+        if (allowEmpty) {
+            setIdOrEmail('');
+        }
+    };
 
-                setRememberMe(true);
-                const ctx = await buildWorkerContextFromSession(authUser);
-                setRole(ctx.role);
-                navigateToMain(navigation, authUser.$id, ctx.workerProfile, ctx.records);
-            } catch (e) {
-                // No session or can't restore (stay on login screen)
-                console.log('Session restore skipped:', e?.message || e);
-            } finally {
-                setIsLoading(false);
+    const restoreRememberedIdentifier = async () => {
+        setIsLoading(true);
+        try {
+            // Always force a logged-out state when arriving on the login screen.
+            await deleteCurrentSession();
+
+            // Always clear password when returning to login.
+            setPassword('');
+            setShowPassword(false);
+
+            const enabled = (await safeSecureGet(REMEMBER_KEYS.enabled)) === '1';
+            if (!enabled) {
+                rememberMeRef.current = false;
+                setRememberMe(false);
+                return;
             }
+
+            rememberMeRef.current = true;
+            setRememberMe(true);
+            const storedLastRole = await safeSecureGet(REMEMBER_KEYS.lastRole);
+            let initialRole = null;
+            if (storedLastRole === ROLE.PHYSICIAN) {
+                initialRole = ROLE.PHYSICIAN;
+            } else if (storedLastRole === ROLE.BHW) {
+                initialRole = ROLE.BHW;
+            }
+            // If lastRole is missing (older installs), infer role from whichever identifier exists.
+            if (!initialRole) {
+                const storedPhysician = (await safeSecureGet(REMEMBER_KEYS.physicianEmail)) || '';
+                const storedBhw = (await safeSecureGet(REMEMBER_KEYS.bhwId)) || '';
+                initialRole = storedPhysician ? ROLE.PHYSICIAN : ROLE.BHW;
+                if (!storedPhysician && storedBhw) {
+                    initialRole = ROLE.BHW;
+                }
+            }
+            setRole(initialRole);
+            await loadRememberedIdentifierForRole(initialRole, { allowEmpty: true });
+        } catch (e) {
+            console.log('Remember-me restore skipped:', e?.message || e);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useFocusEffect(
+        React.useCallback(() => {
+            let isActive = true;
+            (async () => {
+                if (!isActive) return;
+                await restoreRememberedIdentifier();
+            })();
+            return () => {
+                isActive = false;
+            };
+        }, [])
+    );
+
+    useEffect(() => {
+        // When switching roles, load the remembered identifier for that role (if enabled).
+        const syncRememberedOnRoleChange = async () => {
+            if (!rememberMe) return;
+            await loadRememberedIdentifierForRole(role, { allowEmpty: true });
         };
-        restoreSessionIfRemembered();
-    }, []);
+        syncRememberedOnRoleChange();
+    }, [role, rememberMe]);
+
+    useEffect(() => {
+        // Persist only the identifier while typing (if Remember me is enabled).
+        // This makes autofill reliable after logout without ever storing a password.
+        if (!rememberMe) return;
+
+        const trimmed = String(idOrEmail || '').trim();
+        const key = role === ROLE.PHYSICIAN ? REMEMBER_KEYS.physicianEmail : REMEMBER_KEYS.bhwId;
+
+        const t = setTimeout(async () => {
+            try {
+                await safeSecureSet(REMEMBER_KEYS.enabled, '1');
+                await safeSecureSet(REMEMBER_KEYS.lastRole, role);
+                if (trimmed) {
+                    await safeSecureSet(key, trimmed);
+                }
+            } catch {
+                // ignore
+            }
+        }, 300);
+
+        return () => clearTimeout(t);
+    }, [idOrEmail, rememberMe, role]);
 
     if (!fontsLoaded) {
         return null;
@@ -246,14 +389,25 @@ function SelectRole({ navigation }) {
                 // Fetch records for physician if needed (customize as needed)
                 records = [];
             }
+
+            // Remember-me: persist only the identifier (email / health worker id), never the password.
             try {
-                await account.updatePrefs({
-                    rememberMe: !!rememberMe,
-                    lastRole: role,
-                });
+                const shouldRemember = (rememberMeRef.current === true) || (rememberMe === true);
+                if (shouldRemember) {
+                    await safeSecureSet(REMEMBER_KEYS.enabled, '1');
+                    await safeSecureSet(REMEMBER_KEYS.lastRole, role);
+                    if (role === ROLE.PHYSICIAN) {
+                        await safeSecureSet(REMEMBER_KEYS.physicianEmail, idOrEmail.trim());
+                    } else {
+                        await safeSecureSet(REMEMBER_KEYS.bhwId, idOrEmail.trim());
+                    }
+                } else {
+                    await clearRememberedIdentifiers();
+                }
             } catch (prefError) {
-                console.log('Failed to save rememberMe preference:', prefError);
+                console.log('Failed to save rememberMe identifier:', prefError);
             }
+
             navigateToMain(navigation, authUserId, workerProfile, records);
         } catch (error) {
             console.error('Login Error:', error);
@@ -347,7 +501,25 @@ function SelectRole({ navigation }) {
                 <View style={styles.rememberRow}>
                     <Checkbox
                         value={rememberMe}
-                        onValueChange={setRememberMe}
+                        onValueChange={async (value) => {
+                            rememberMeRef.current = value;
+                            setRememberMe(value);
+                            if (!value) {
+                                await clearRememberedIdentifiers();
+                            } else {
+                                await safeSecureSet(REMEMBER_KEYS.enabled, '1');
+                                await safeSecureSet(REMEMBER_KEYS.lastRole, role);
+                                // If user already typed an identifier, keep it (don't overwrite).
+                                // If the field is empty, try to autofill from stored value.
+                                const current = String(idOrEmail || '').trim();
+                                if (!current) {
+                                    await loadRememberedIdentifierForRole(role, { allowEmpty: false });
+                                } else {
+                                    const key = role === ROLE.PHYSICIAN ? REMEMBER_KEYS.physicianEmail : REMEMBER_KEYS.bhwId;
+                                    await safeSecureSet(key, current);
+                                }
+                            }
+                        }}
                         color={rememberMe ? "#1ED760" : undefined}
                         disabled={isLoading}
                     />

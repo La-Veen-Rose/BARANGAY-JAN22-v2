@@ -159,8 +159,13 @@ function MainDashboard({ navigation, openSidebar }) {
         }, [])
     );
 
-    const handleConfirmLogout = useCallback(() => {
+    const handleConfirmLogout = useCallback(async () => {
         setLogoutVisible(false);
+        try {
+            await account.deleteSession('current');
+        } catch (e) {
+            // ignore if already logged out
+        }
         navigation.replace('SelectRole');
     }, [navigation]);
 
