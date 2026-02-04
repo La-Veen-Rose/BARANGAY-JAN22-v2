@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -12,6 +12,7 @@ import {
     View,
     Platform,
 } from "react-native";
+import Checkbox from "expo-checkbox";
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-icons";
 import { account, appwriteConfig, databases, Query } from "./appwriteConfig";
 import { registerForPushNotificationsAsync, savePushTokenForCurrentUser } from "../notifications/notificationService";
@@ -22,6 +23,87 @@ const { width, height } = Dimensions.get('window');
 const ROLE = {
     PHYSICIAN: 'physician',
     BHW: 'bhw',
+};
+
+const buildWorkerContextFromSession = async (authUser) => {
+    if (!authUser) {
+        throw new Error('Missing auth user');
+    }
+
+    const prefs = authUser.prefs || {};
+    const lastRole = prefs.lastRole === ROLE.PHYSICIAN ? ROLE.PHYSICIAN : ROLE.BHW;
+
+    if (lastRole === ROLE.PHYSICIAN) {
+        if (!appwriteConfig.physicianAccountsCollectionId) {
+            throw new Error('Missing Appwrite config: physicianAccountsCollectionId');
+        }
+        const staffRes = await databases.listDocuments(
+            appwriteConfig.staffDatabaseId,
+            appwriteConfig.physicianAccountsCollectionId,
+            [Query.equal('auth_user_id', authUser.$id)]
+        );
+        if (!staffRes.documents || staffRes.documents.length === 0) {
+            throw new Error('Physician profile not found.');
+        }
+        return {
+            role: ROLE.PHYSICIAN,
+            workerProfile: staffRes.documents[0],
+            records: [],
+        };
+    }
+
+    const staffRes = await databases.listDocuments(
+        appwriteConfig.staffDatabaseId,
+        appwriteConfig.healthWorkersCollectionId,
+        [Query.equal('email', authUser.email)]
+    );
+    if (!staffRes.documents || staffRes.documents.length === 0) {
+        throw new Error('Health Worker profile not found.');
+    }
+    const workerProfile = staffRes.documents[0];
+
+    const recordsRes = await databases.listDocuments(
+        appwriteConfig.patientDatabaseId,
+        appwriteConfig.patientRecordsCollectionId,
+        [
+            Query.equal('purok', workerProfile.purok),
+            Query.equal('barangay', workerProfile.barangay)
+        ]
+    );
+
+    return {
+        role: ROLE.BHW,
+        workerProfile,
+        records: recordsRes.documents || [],
+    };
+};
+
+const safeSecureGet = async (key) => {
+    if (Platform.OS === 'web') return null;
+    try {
+        return await SecureStore.getItemAsync(key);
+    } catch (e) {
+        console.log('SecureStore get failed:', e);
+        return null;
+    }
+};
+
+const safeSecureSet = async (key, value) => {
+    if (Platform.OS === 'web') return;
+    try {
+        await SecureStore.setItemAsync(key, value);
+    } catch (e) {
+        console.log('SecureStore set failed:', e);
+    }
+};
+
+const safeSecureDelete = async (key) => {
+    if (Platform.OS === 'web') return;
+    try {
+        await SecureStore.deleteItemAsync(key);
+    } catch (e) {
+        console.log('SecureStore delete failed:', e);
+    }
 };
 
 const navigateToMain = (navigation, authUserId, workerProfile, records) => {
@@ -46,10 +128,7 @@ function SelectRole({ navigation }) {
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-
-    if (!fontsLoaded) {
-        return null;
-    }
+    const [rememberMe, setRememberMe] = useState(false);
 
     const deleteCurrentSession = async () => {
         try {
@@ -59,6 +138,36 @@ function SelectRole({ navigation }) {
             console.log('No previous session to delete.');
         }
     };
+
+    useEffect(() => {
+        const restoreSessionIfRemembered = async () => {
+            setIsLoading(true);
+            try {
+                const authUser = await account.get();
+                const prefs = authUser.prefs || {};
+
+                if (prefs.rememberMe !== true) {
+                    await deleteCurrentSession();
+                    return;
+                }
+
+                setRememberMe(true);
+                const ctx = await buildWorkerContextFromSession(authUser);
+                setRole(ctx.role);
+                navigateToMain(navigation, authUser.$id, ctx.workerProfile, ctx.records);
+            } catch (e) {
+                // No session or can't restore (stay on login screen)
+                console.log('Session restore skipped:', e?.message || e);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        restoreSessionIfRemembered();
+    }, []);
+
+    if (!fontsLoaded) {
+        return null;
+    }
 
     const handleLogin = async () => {
         if (!idOrEmail || !password) {
@@ -137,6 +246,14 @@ function SelectRole({ navigation }) {
                 // Fetch records for physician if needed (customize as needed)
                 records = [];
             }
+            try {
+                await account.updatePrefs({
+                    rememberMe: !!rememberMe,
+                    lastRole: role,
+                });
+            } catch (prefError) {
+                console.log('Failed to save rememberMe preference:', prefError);
+            }
             navigateToMain(navigation, authUserId, workerProfile, records);
         } catch (error) {
             console.error('Login Error:', error);
@@ -145,6 +262,8 @@ function SelectRole({ navigation }) {
                 errorMessage = 'Invalid Health Worker ID.';
             } else if (error.message.includes('Physician profile not found')) {
                 errorMessage = 'Physician account profile not found. Please contact administrator.';
+            } else if (error.message.includes('Health Worker profile not found')) {
+                errorMessage = 'Health Worker account profile not found. Please contact administrator.';
             } else if (error.message.includes('physicianAccountsCollectionId')) {
                 errorMessage = 'Physician login is not configured. Please set EXPO_PUBLIC_PHYSICIAN_ACCOUNTS_COLLECTION_ID.';
             } else if (error.message.includes('Missing email')) {
@@ -225,6 +344,15 @@ function SelectRole({ navigation }) {
                         />
                     </TouchableOpacity>
                 </View>
+                <View style={styles.rememberRow}>
+                    <Checkbox
+                        value={rememberMe}
+                        onValueChange={setRememberMe}
+                        color={rememberMe ? "#1ED760" : undefined}
+                        disabled={isLoading}
+                    />
+                    <Text style={styles.rememberText}>Remember me</Text>
+                </View>
                 <TouchableOpacity
                     style={styles.loginButton}
                     onPress={handleLogin}
@@ -276,7 +404,9 @@ const styles = StyleSheet.create({
             },
         }),
     },
-    loginButton: { backgroundColor: "#125872", borderRadius: 12, paddingVertical: 15, width: "100%", alignItems: "center", marginTop: 25 },
+    rememberRow: { flexDirection: 'row', alignItems: 'center', marginTop: -5, marginBottom: 10 },
+    rememberText: { marginLeft: 8, color: '#fff', fontSize: 13, fontFamily: 'Poppins-Medium' },
+    loginButton: { backgroundColor: "#125872", borderRadius: 12, paddingVertical: 15, width: "100%", alignItems: "center", marginTop: 25, marginBottom: 12 },
     loginButtonText: { color: "#fff", fontSize: 16, fontWeight: "bold", fontFamily: "Poppins-Bold" },
     footerImage: { width: width, height: height * 0.20, resizeMode: "cover", alignSelf: 'center' }
 });

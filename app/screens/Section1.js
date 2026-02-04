@@ -64,21 +64,85 @@ const FormRadioOption = ({ label, value, selectedValue, onSelect }) => (
 // STANDARD INPUT
 // --------------------------------------------------
 const FormInput = ({ label, required, onInputChange, fieldName, value, placeholder, ...props }) => {
-    // Determine if field should be uppercase (exclude numeric fields)
-    const isNumericField = props.keyboardType === 'numeric' || props.keyboardType === 'phone-pad';
+    const { editable = true, style: customStyle, keyboardType, maxLength, ...restProps } = props;
     const isContactField = fieldName === 'contactNumber';
+    const isDisabled = editable === false;
 
     const normalizeContact = (raw) => {
         let digits = String(raw || '').replace(/\D/g, '');
-        if (digits.startsWith('0')) {
-            digits = '63' + digits.slice(1);
-        } else if (!digits.startsWith('63')) {
-            digits = '63' + digits;
+        if (!digits) return '';
+        if (digits.startsWith('63')) {
+            return digits.slice(0, 12);
         }
-        return digits.slice(0, 12);
+        if (digits.startsWith('0')) {
+            digits = digits.slice(1);
+        }
+        return `63${digits}`.slice(0, 12);
     };
 
-    const displayValue = isContactField ? normalizeContact(value) : value;
+    const getLocalDigits = (rawValue) => {
+        let digits = String(rawValue || '').replace(/\D/g, '');
+        if (!digits) return '';
+        if (digits.startsWith('63')) {
+            digits = digits.slice(2);
+        } else if (digits.startsWith('0')) {
+            digits = digits.slice(1);
+        }
+        return digits.slice(0, 10);
+    };
+
+    const formatLocalDigits = (digits) => {
+        if (!digits) return '';
+        const first = digits.slice(0, 4);
+        const second = digits.slice(4, 7);
+        const third = digits.slice(7, 11);
+        return [first, second, third].filter(Boolean).join(' ');
+    };
+
+    const normalizedContactValue = isContactField ? normalizeContact(value) : null;
+    const contactLocalDigits = isContactField ? getLocalDigits(normalizedContactValue || value) : '';
+    const displayValue = isContactField ? formatLocalDigits(contactLocalDigits) : value;
+
+    const handleContactChange = (text) => {
+        const digitsOnly = text.replace(/\D/g, '').slice(0, 10);
+        onInputChange(fieldName, normalizeContact(digitsOnly));
+    };
+
+    if (isContactField) {
+        return (
+            <View style={sectionStyles.inputGroup}>
+                <Text style={sectionStyles.fieldLabel}>
+                    {label} {required && <Text style={{ color: '#D32F2F' }}> *</Text>}
+                </Text>
+
+                <View style={[
+                    sectionStyles.contactWrapper,
+                    isDisabled && sectionStyles.contactWrapperDisabled
+                ]}>
+                    <View style={sectionStyles.contactPrefix}>
+                        <Text style={sectionStyles.contactPrefixText}>+63</Text>
+                    </View>
+                    <View style={sectionStyles.contactDivider} />
+                    <TextInput
+                        style={[
+                            sectionStyles.contactInput,
+                            customStyle,
+                            isDisabled && sectionStyles.disabledInput
+                        ]}
+                        placeholder={placeholder || '9123 456 7890'}
+                        placeholderTextColor="#96A0AF"
+                        onChangeText={handleContactChange}
+                        value={displayValue}
+                        keyboardType="phone-pad"
+                        maxLength={maxLength || 13}
+                        editable={!isDisabled}
+                        autoCapitalize="none"
+                        {...restProps}
+                    />
+                </View>
+            </View>
+        );
+    }
 
     return (
         <View style={sectionStyles.inputGroup}>
@@ -89,22 +153,18 @@ const FormInput = ({ label, required, onInputChange, fieldName, value, placehold
             <TextInput
                 style={[
                     sectionStyles.input, 
-                    props.editable === false && sectionStyles.disabledInput
+                    customStyle,
+                    isDisabled && sectionStyles.disabledInput
                 ]}
                 placeholder={placeholder || `Enter ${label.toLowerCase()}`}
                 placeholderTextColor="#aaa"
-                onChangeText={(val) => {
-                    if (isContactField) {
-                        onInputChange(fieldName, normalizeContact(val));
-                    } else {
-                        onInputChange(fieldName, val);
-                    }
-                }}
+                onChangeText={(val) => onInputChange(fieldName, val)}
                 value={displayValue}
-                keyboardType={isContactField ? 'numeric' : props.keyboardType}
-                maxLength={isContactField ? 12 : props.maxLength}
+                keyboardType={keyboardType}
+                maxLength={maxLength}
                 autoCapitalize="none"
-                {...props}
+                editable={!isDisabled}
+                {...restProps}
             />
         </View>
     );
@@ -685,6 +745,47 @@ const sectionStyles = StyleSheet.create({
     disabledInput: { 
         backgroundColor: '#f5f5f5', 
         color: '#777' 
+    },
+    contactWrapper: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#c7d3dd',
+        borderRadius: 14,
+        overflow: 'hidden',
+        backgroundColor: '#fff',
+        height: 54,
+    },
+    contactWrapperDisabled: {
+        backgroundColor: '#f5f5f5',
+        borderColor: '#e0e0e0',
+    },
+    contactPrefix: {
+        backgroundColor: '#0F5A72',
+        paddingHorizontal: 18,
+        height: '100%',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    contactPrefixText: {
+        color: '#fff',
+        fontSize: 16,
+        fontFamily: 'Poppins',
+        fontWeight: '600',
+    },
+    contactDivider: {
+        width: 1,
+        height: '55%',
+        backgroundColor: '#083F52',
+        opacity: 0.35,
+        alignSelf: 'center',
+    },
+    contactInput: {
+        flex: 1,
+        paddingHorizontal: 16,
+        fontSize: 16,
+        color: '#1c2b36',
+        fontFamily: 'Poppins',
     },
 
     radioGroup: { 

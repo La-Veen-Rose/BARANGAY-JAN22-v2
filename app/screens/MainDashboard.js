@@ -190,101 +190,108 @@ function MainDashboard({ navigation, openSidebar }) {
 
     return (
         <ImageBackground style={styles.background} source={require("../assets/bg-blue.png")}>
-            {/* HEADER */}
-            <View style={styles.topHeader}>
-                <TouchableOpacity onPress={openSidebar}>
-                    <Ionicons name="menu" size={28} color="#125872" />
-                </TouchableOpacity>
-
-                <Text style={styles.headerTitle}>{getStaffHeaderLocation(workerProfile, staffRole)}</Text>
-
-                <TouchableOpacity onPress={() => navigation.navigate('MyProfile', { workerProfile })}>
-                    <View style={styles.profileIcon}>
-                        <Ionicons name="person" size={20} color="white" />
-                    </View>
-                </TouchableOpacity>
-            </View>
-
-            <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-                {/* SUBMITTED CASES CARD */}
-                <TouchableOpacity
-                    style={styles.mainCard}
-                    onPress={() => navigation.navigate("NavigationHeader", { workerProfile })}
-                >
-                    <Text style={[styles.mainCardTitle, { color: '#ffffff' }]}>Submitted cases</Text>
-                    <View style={styles.mainCardRow}>
-                        <Text style={styles.mainCardNumber}>{submittedCasesCount}</Text>
-                        <View style={styles.mainCardStatus}>
-                            <Text style={styles.statusLabel}>Status:</Text>
-                            <Text style={styles.statusText}>{pendingSubmitted} pending</Text>
-                            <Text style={styles.statusText}>{verifiedCasesCount} verified</Text>
-                            <Text style={styles.statusText}>{terminatedCasesCount} terminated</Text>
-                        </View>
-                    </View>
-                </TouchableOpacity>
-
-                {/* METRICS ROW */}
-                <View style={styles.metricsRow}>
-                    {/* TOTAL CASES THIS MONTH */}
-                    <TouchableOpacity 
-                        style={[styles.halfCard, styles.metricsCardLeft]}
-                        onPress={() => navigation.navigate('AnimalBiteReport', { workerProfile })}
-                    >
-                        <Text
-                            style={[styles.halfCardTitle, { fontSize: responsiveFont(16, { min: 12, max: 18 }) }]}
-                            numberOfLines={1}
-                            adjustsFontSizeToFit
-                            minimumFontScale={0.75}
-                            ellipsizeMode="tail"
-                        >
-                            Total Cases this Month
-                        </Text>
-                        <View style={styles.numberWithLabel}>
-                            <Text style={styles.halfCardNumber}>{monthlyCases} cases</Text>
-                        </View>
-                        <Text style={styles.trendText}>Trend: {monthlyTrend >= 0 ? '+' : ''}{monthlyTrend}% from last month</Text>
+            <View style={styles.screenWrapper}>
+                {/* HEADER */}
+                <View style={styles.topHeader}>
+                    <TouchableOpacity onPress={openSidebar}>
+                        <Ionicons name="menu" size={28} color="#125872" />
                     </TouchableOpacity>
 
-                    {/* ANNUAL BITE REPORTS */}
-                    <TouchableOpacity
-                        style={[styles.halfCard, styles.metricsCardRight]}
-                        onPress={() => navigation.navigate('AnimalBiteReport', { workerProfile })}
-                    >
-                        <Text
-                            style={[styles.halfCardTitle, { fontSize: responsiveFont(16, { min: 12, max: 18 }) }]}
-                            numberOfLines={1}
-                            adjustsFontSizeToFit
-                            minimumFontScale={0.75}
-                            ellipsizeMode="tail"
-                        >
-                            Annual Bite Reports
-                        </Text>
-                        <View style={styles.numberWithLabel}>
-                            <Text style={styles.halfCardNumber}>{annualCases} reports</Text>
+                    <Text style={styles.headerTitle}>{getStaffHeaderLocation(workerProfile, staffRole)}</Text>
+
+                    <TouchableOpacity onPress={() => navigation.navigate('MyProfile', { workerProfile })}>
+                        <View style={styles.profileIcon}>
+                            <Ionicons name="person" size={20} color="white" />
                         </View>
-                        <Text style={styles.trendText}>Trend: {annualTrend >= 0 ? '+' : ''}{annualTrend}% from last year</Text>
                     </TouchableOpacity>
                 </View>
 
-                {/* RABIES EDUCATION CARD */}
-                <TouchableOpacity style={styles.rabEdCard}>
-                    <Text
-                        style={[styles.rabEdTitle, { fontSize: responsiveFont(24, { min: 16, max: 28 }) }]}
-                        numberOfLines={1}
-                        adjustsFontSizeToFit
-                        minimumFontScale={0.75}
-                        ellipsizeMode="tail"
-                    >
-                        Rabies Education (RabEd)
-                    </Text>
-                    <Text style={styles.rabEdDescription}>
-                        Rabies Education (RabEd) empowers Tagum City with clear, bite-sized lessons to prevent panic and act wisely.
-                    </Text>
-                    <Text style={styles.rabEdLink}>Go to RabEd</Text>
-                </TouchableOpacity>
+                <View style={styles.cardsScrollArea}>
+                    <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+                        {/* SUBMITTED CASES CARD */}
+                        <TouchableOpacity
+                            style={styles.mainCard}
+                            onPress={() => navigation.navigate("NavigationHeader", { workerProfile })}
+                        >
+                            <Text style={[styles.mainCardTitle, { color: '#ffffff' }]}>Submitted cases</Text>
+                            <View style={styles.mainCardRow}>
+                                <Text style={styles.mainCardNumber}>{submittedCasesCount}</Text>
+                                <View style={styles.mainCardStatus}>
+                                    <Text style={styles.statusLabel}>Status:</Text>
+                                    <Text style={styles.statusText}>{pendingSubmitted} pending</Text>
+                                    <Text style={styles.statusText}>{verifiedCasesCount} verified</Text>
+                                    <Text style={styles.statusText}>{terminatedCasesCount} terminated</Text>
+                                </View>
+                            </View>
+                        </TouchableOpacity>
 
-                <View style={styles.bottomSpacing} />
-            </ScrollView>
+                        {/* METRICS ROW */}
+                        <View style={styles.metricsRow}>
+                            {/* TOTAL CASES THIS MONTH */}
+                            <TouchableOpacity 
+                                style={[styles.halfCard, styles.metricsCardLeft]}
+                                onPress={() => navigation.navigate('AnimalBiteReport', { workerProfile })}
+                            >
+                                <Text
+                                    style={[styles.halfCardTitle, { fontSize: responsiveFont(16, { min: 12, max: 18 }) }]}
+                                    numberOfLines={1}
+                                    adjustsFontSizeToFit
+                                    minimumFontScale={0.75}
+                                    ellipsizeMode="tail"
+                                >
+                                    Total Cases this Month
+                                </Text>
+                                <View style={styles.numberWithLabel}>
+                                    <Text style={styles.halfCardNumber}>{monthlyCases} cases</Text>
+                                </View>
+                                <Text style={styles.trendText}>Trend: {monthlyTrend >= 0 ? '+' : ''}{monthlyTrend}% from last month</Text>
+                            </TouchableOpacity>
+
+                            {/* ANNUAL BITE REPORTS */}
+                            <TouchableOpacity
+                                style={[styles.halfCard, styles.metricsCardRight]}
+                                onPress={() => navigation.navigate('AnimalBiteReport', { workerProfile })}
+                            >
+                                <Text
+                                    style={[styles.halfCardTitle, { fontSize: responsiveFont(16, { min: 12, max: 18 }) }]}
+                                    numberOfLines={1}
+                                    adjustsFontSizeToFit
+                                    minimumFontScale={0.75}
+                                    ellipsizeMode="tail"
+                                >
+                                    Annual Bite Reports
+                                </Text>
+                                <View style={styles.numberWithLabel}>
+                                    <Text style={styles.halfCardNumber}>{annualCases} reports</Text>
+                                </View>
+                                <Text style={styles.trendText}>Trend: {annualTrend >= 0 ? '+' : ''}{annualTrend}% from last year</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* RABIES EDUCATION CARD */}
+                        <TouchableOpacity
+                            style={styles.rabEdCard}
+                            onPress={() => navigation.navigate('RabEdAnnouncements', { workerProfile })}
+                        >
+                            <Text
+                                style={[styles.rabEdTitle, { fontSize: responsiveFont(24, { min: 16, max: 28 }) }]}
+                                numberOfLines={1}
+                                adjustsFontSizeToFit
+                                minimumFontScale={0.75}
+                                ellipsizeMode="tail"
+                            >
+                                Rabies Education (RabEd)
+                            </Text>
+                            <Text style={styles.rabEdDescription}>
+                                Rabies Education (RabEd) empowers Tagum City with clear, bite-sized lessons to prevent panic and act wisely.
+                            </Text>
+                            <Text style={styles.rabEdLink}>Go to RabEd</Text>
+                        </TouchableOpacity>
+
+                        <View style={styles.bottomSpacing} />
+                    </ScrollView>
+                </View>
+            </View>
 
             <LogOut
                 visible={logoutVisible}
@@ -313,9 +320,16 @@ const styles = StyleSheet.create({
         marginTop: 10, 
         fontSize: 16 
     },
-    scrollContainer: {
+    screenWrapper: {
         flex: 1,
+    },
+    cardsScrollArea: {
+        flex: 1,
+    },
+    scrollContainer: {
+        flexGrow: 1,
         paddingHorizontal: 20,
+        paddingBottom: 30,
     },
     topHeader: {
         flexDirection: "row",

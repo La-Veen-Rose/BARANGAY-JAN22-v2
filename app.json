@@ -5,7 +5,7 @@
     "slug": "raven-staffs",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./app/assets/raven-fang.png",
+    "icon": "./app/assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
       "image": "./app/assets/icon.png",
@@ -18,8 +18,7 @@
     "android": {
       "jsEngine": "hermes",
       "adaptiveIcon": {
-        "foregroundImage": "./app/assets/raven-fang.png",
-        "edgeToEdgeEnabled": true,
+        "foregroundImage": "./app/assets/icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
@@ -31,7 +30,7 @@
     },
     "androidStatusBar": {
       "hidden": true,
-      "style": "light"
+      "barStyle": "light-content"
     },
     "androidNavigationBar": {
       "visible": "immersive"
