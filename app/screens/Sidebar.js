@@ -13,7 +13,8 @@ import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import LogOut from "./LogOut";
 import { account } from "./appwriteConfig";
-import { getCurrentStaffProfile, getStaffDisplayName } from './staffProfileService';
+import { getCurrentStaffProfile, getStaffDisplayName, updatePresenceForCurrentUser } from './staffProfileService';
+import { logActivity } from './activityLogsService';
 
 import RavenLogo from "../assets/raven-logo-blue.svg";
 
@@ -174,6 +175,15 @@ function Sidebar({ closeSidebar, workerProfile: passedWorkerProfile }) {
         onConfirm={async () => {
           setLogoutVisible(false);
           try {
+            try {
+              await logActivity({
+                action: 'Logout',
+                description: 'Successfully logout',
+              });
+            } catch (e2) {
+              console.log('Activity log skipped:', e2?.message || String(e2));
+            }
+            await updatePresenceForCurrentUser({ isOnline: false, lastSeenAt: new Date() });
             await account.deleteSession('current');
           } catch (e) {
             // ignore if already logged out

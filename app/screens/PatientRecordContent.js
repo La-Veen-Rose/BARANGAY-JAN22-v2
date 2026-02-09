@@ -21,6 +21,7 @@ import { databases, appwriteConfig, APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID } fro
 import CityHealthLogo from '../assets/CITY HEALTH OFFICE LOGO.png';
 import { printPatientRecordPdf } from './patientRecordPdfService';
 import { getCurrentStaffProfile } from './staffProfileService';
+import { logActivity } from './activityLogsService';
 
 function PatientRecordContent({ patient, onOpenPrescription }) {
     const [patientData, setPatientData] = useState(null);
@@ -213,6 +214,15 @@ function PatientRecordContent({ patient, onOpenPrescription }) {
             setTerminateReason('');
             setTerminateReasonError('');
             triggerTerminateSuccess();
+
+            try {
+                await logActivity({
+                    action: 'Update',
+                    description: 'Updated patient record',
+                });
+            } catch (eLog) {
+                console.log('Activity log skipped:', eLog?.message || String(eLog));
+            }
         } catch (e) {
             console.error('Terminate record error:', e);
             Alert.alert('Terminate Record', e?.message || 'Failed to terminate patient record.');

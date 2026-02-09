@@ -24,6 +24,7 @@ import SignatureScreen from 'react-native-signature-canvas';
 
 import { databases, storage, appwriteConfig, ID } from './appwriteConfig';
 import { getCurrentStaffProfile } from './staffProfileService';
+import { logActivity } from './activityLogsService';
 import {
     removeWhitePaperBackgroundAsync,
     validateSignatureImageAsync,
@@ -178,6 +179,11 @@ function Prescription({ navigation, route }) {
     const [previewVisible, setPreviewVisible] = useState(false);
     const [previewUri, setPreviewUri] = useState(null);
     const [generatingPreview, setGeneratingPreview] = useState(false);
+    const [incompleteModalVisible, setIncompleteModalVisible] = useState(false);
+    const [incompleteModalMessage, setIncompleteModalMessage] = useState('');
+    const [reviewBeforeSubmit, setReviewBeforeSubmit] = useState(false);
+    const [pendingPrescriptionPngUri, setPendingPrescriptionPngUri] = useState(null);
+    const [submittingPrescription, setSubmittingPrescription] = useState(false);
     
     const viewShotRef = useRef(null);
     const signatureRef = useRef(null);
@@ -705,46 +711,32 @@ function Prescription({ navigation, route }) {
         return { fileId: response?.$id, response };
     };
 
-    const onPressSave = async () => {
-        if (isViewMode) {
-            if (navigation?.goBack) navigation.goBack();
-            return;
-        }
-
-        if (!recordId) {
-            Alert.alert('Prescription', 'Missing patient record ID.');
-            return;
-        }
-
-        // 1) Generate PNG (do not show local preview here)
-        const pngUri = await capturePrescriptionPng(false);
-
-        if (!pngUri) {
-            // If we can't generate the PNG, we shouldn't mark the record as verified.
-            return;
-        }
-
-        // Show preview hosted by NavigationHeader so it persists while underlying content switches.
-        // Also optimistically mark the underlying Patient Record as verified immediately.
+    const cleanupPendingPrescriptionPng = (uri) => {
+        const target = uri || pendingPrescriptionPngUri;
+        if (!target) return;
         try {
-            const basePatient = recordDoc || route?.params?.patient || {};
-            const optimisticPatient = {
-                ...(basePatient || {}),
-                status: 'verified',
-                // Provide a changing value so PatientRecordContent can choose to refetch later.
-                $updatedAt: basePatient?.$updatedAt || new Date().toISOString(),
-            };
-            navigation?.showPreview?.({
-                uri: pngUri,
-                focusStatus: 'Verified',
-                activeScreen: 'PATIENT_RECORD',
-                requestedPatient: optimisticPatient,
-            });
+            const baseDir = FileSystem.documentDirectory || FileSystem.cacheDirectory || '';
+            const isAppFile = typeof target === 'string' && baseDir && target.startsWith(baseDir);
+            if (isAppFile) {
+                FileSystem.deleteAsync(target, { idempotent: true }).catch(() => {});
+            }
         } catch (e) {
-            // ignore if showPreview not available
+            // ignore cleanup errors
         }
+    };
 
-        // 2) Persist data back to patient record + store uploaded file id
+    const closePrescriptionPreview = () => {
+        if (submittingPrescription) return;
+        if (reviewBeforeSubmit) {
+            cleanupPendingPrescriptionPng();
+        }
+        setPreviewVisible(false);
+        setReviewBeforeSubmit(false);
+        setPendingPrescriptionPngUri(null);
+    };
+
+    const persistPrescriptionAsync = async ({ pngUri, showHeaderPreview = true }) => {
+        // 1) Upload prescription image
         let uploadedFileId = '';
         try {
             const uploaded = await uploadPrescriptionPngToStorage({ pngUri, recordId });
@@ -752,14 +744,15 @@ function Prescription({ navigation, route }) {
         } catch (e) {
             console.error('Prescription PNG upload error:', e);
             Alert.alert('Prescription', e?.message || 'Failed to upload prescription image to storage.');
-            return;
+            return null;
         }
 
         if (!uploadedFileId) {
             Alert.alert('Prescription', 'Failed to upload prescription image to storage.');
-            return;
+            return null;
         }
 
+        // 2) Persist data back to patient record + store uploaded file id
         const payload = {
             // Mark record as verified when prescription is issued
             status: 'verified',
@@ -801,11 +794,13 @@ function Prescription({ navigation, route }) {
             // Keep local UI in sync without a refetch.
             setRecordDoc((prev) => ({ ...(prev || {}), ...(updated || payload) }));
 
-            // Update the header's selected patient so it reflects the verified status
-            try {
-                navigation?.showPreview?.({ uri: pngUri, focusStatus: 'Verified', activeScreen: 'PATIENT_RECORD', requestedPatient: updated || payload });
-            } catch (e) {
-                // ignore
+            if (showHeaderPreview) {
+                // Update the header's selected patient so it reflects the verified status
+                try {
+                    navigation?.showPreview?.({ uri: pngUri, focusStatus: 'Verified', activeScreen: 'PATIENT_RECORD', requestedPatient: updated || payload });
+                } catch (e) {
+                    // ignore
+                }
             }
 
             // If patientRecordId is generated by a server-side Appwrite Function,
@@ -822,10 +817,12 @@ function Prescription({ navigation, route }) {
                             );
                             if (maybeHasId(latest)) {
                                 setRecordDoc((prev) => ({ ...(prev || {}), ...(latest || {}) }));
-                                try {
-                                    navigation?.showPreview?.({ uri: pngUri, focusStatus: 'Verified', activeScreen: 'PATIENT_RECORD', requestedPatient: latest });
-                                } catch (e2) {
-                                    // ignore
+                                if (showHeaderPreview) {
+                                    try {
+                                        navigation?.showPreview?.({ uri: pngUri, focusStatus: 'Verified', activeScreen: 'PATIENT_RECORD', requestedPatient: latest });
+                                    } catch (e2) {
+                                        // ignore
+                                    }
                                 }
                             }
                         } catch (e3) {
@@ -836,44 +833,145 @@ function Prescription({ navigation, route }) {
             } catch (e) {
                 // ignore
             }
+
+            try {
+                await logActivity({
+                    action: 'Update',
+                    description: 'Updated patient record',
+                });
+            } catch (eLog) {
+                console.log('Activity log skipped:', eLog?.message || String(eLog));
+            }
+
+            return updated || payload;
         } catch (e) {
-                // If Appwrite schema expects a number for categoryOfExposure, retry with int.
-                const msg = String(e?.message || '');
-                const shouldRetryCategory = /categoryOfExposure/i.test(msg) || /invalid document structure|invalid type/i.test(msg);
+            // If Appwrite schema expects a number for categoryOfExposure, retry with int.
+            const msg = String(e?.message || '');
+            const shouldRetryCategory = /categoryOfExposure/i.test(msg) || /invalid document structure|invalid type/i.test(msg);
 
-                if (shouldRetryCategory) {
-                    try {
-                        const categoryInt = category ? Number.parseInt(String(category).trim(), 10) : null;
-                        const retryPayload = {
-                            ...payload,
-                            categoryOfExposure: Number.isFinite(categoryInt) ? categoryInt : payload.categoryOfExposure,
-                        };
-                        const updated2 = await databases.updateDocument(
-                            appwriteConfig.patientDatabaseId,
-                            appwriteConfig.patientRecordsCollectionId,
-                            recordId,
-                            retryPayload
-                        );
-                        setRecordDoc((prev) => ({ ...(prev || {}), ...(updated2 || retryPayload) }));
+            if (shouldRetryCategory) {
+                try {
+                    const categoryInt = category ? Number.parseInt(String(category).trim(), 10) : null;
+                    const retryPayload = {
+                        ...payload,
+                        categoryOfExposure: Number.isFinite(categoryInt) ? categoryInt : payload.categoryOfExposure,
+                    };
+                    const updated2 = await databases.updateDocument(
+                        appwriteConfig.patientDatabaseId,
+                        appwriteConfig.patientRecordsCollectionId,
+                        recordId,
+                        retryPayload
+                    );
+                    setRecordDoc((prev) => ({ ...(prev || {}), ...(updated2 || retryPayload) }));
 
+                    if (showHeaderPreview) {
                         // Ensure header shows the updated (verified) patient
                         try {
                             navigation?.showPreview?.({ uri: pngUri, focusStatus: 'Verified', activeScreen: 'PATIENT_RECORD', requestedPatient: updated2 || retryPayload });
                         } catch (e2) {
                             // ignore
                         }
-
-                        return;
-                    } catch (e2) {
-                        console.error('Prescription save error (retry):', e2);
-                        Alert.alert('Prescription', e2?.message || 'Failed to save prescription.');
-                        return;
                     }
-                }
 
-                console.error('Prescription save error:', e);
-                Alert.alert('Prescription', e?.message || 'Failed to save prescription.');
+                    try {
+                        await logActivity({
+                            action: 'Update',
+                            description: 'Updated patient record',
+                        });
+                    } catch (eLog) {
+                        console.log('Activity log skipped:', eLog?.message || String(eLog));
+                    }
+                    return updated2 || retryPayload;
+                } catch (e2) {
+                    console.error('Prescription save error (retry):', e2);
+                    Alert.alert('Prescription', e2?.message || 'Failed to save prescription.');
+                    return null;
+                }
+            }
+
+            console.error('Prescription save error:', e);
+            Alert.alert('Prescription', e?.message || 'Failed to save prescription.');
+            return null;
         }
+    };
+
+    const confirmSubmitPrescription = async () => {
+        if (!pendingPrescriptionPngUri) {
+            closePrescriptionPreview();
+            return;
+        }
+
+        setSubmittingPrescription(true);
+        try {
+            const savedDoc = await persistPrescriptionAsync({ pngUri: pendingPrescriptionPngUri, showHeaderPreview: false });
+            if (!savedDoc) return;
+
+            const nowIso = new Date().toISOString();
+            const basePatient = route?.params?.patient || recordDoc || {};
+            const patientToShow = {
+                ...(basePatient || {}),
+                ...(savedDoc || {}),
+                status: 'verified',
+                $updatedAt: savedDoc?.$updatedAt || basePatient?.$updatedAt || nowIso,
+            };
+            if (!patientToShow.$id && patientToShow.id) patientToShow.$id = patientToShow.id;
+            if (!patientToShow.id && patientToShow.$id) patientToShow.id = patientToShow.$id;
+
+            cleanupPendingPrescriptionPng(pendingPrescriptionPngUri);
+            setPreviewVisible(false);
+            setReviewBeforeSubmit(false);
+            setPendingPrescriptionPngUri(null);
+
+            // Navigate/display Patient Record (Verified)
+            if (typeof navigation?.showPatientRecord === 'function') {
+                navigation.showPatientRecord({ patient: patientToShow, focusStatus: 'Verified' });
+            } else if (typeof navigation?.goBack === 'function') {
+                navigation.goBack();
+            }
+        } finally {
+            setSubmittingPrescription(false);
+        }
+    };
+
+    const onPressSave = async () => {
+        if (isViewMode) {
+            if (navigation?.goBack) navigation.goBack();
+            return;
+        }
+
+        const missingCategory = !String(category || '').trim();
+        const missingPlan = !String(planValue || '').trim();
+        if (missingCategory || missingPlan) {
+            setCategoryDropdownOpen(false);
+            setPlanDropdownOpen(false);
+
+            if (missingCategory && missingPlan) {
+                setIncompleteModalMessage('Please select a Category of Exposure and a Treatment Plan to continue.');
+            } else if (missingCategory) {
+                setIncompleteModalMessage('Please select a Category of Exposure to continue.');
+            } else {
+                setIncompleteModalMessage('Please select a Treatment Plan to continue.');
+            }
+            setIncompleteModalVisible(true);
+            return;
+        }
+
+        if (!recordId) {
+            Alert.alert('Prescription', 'Missing patient record ID.');
+            return;
+        }
+
+        // 1) Generate PNG and show preview for review before submission
+        const pngUri = await capturePrescriptionPng(true);
+
+        if (!pngUri) {
+            // If we can't generate the PNG, we shouldn't mark the record as verified.
+            return;
+        }
+
+
+        setPendingPrescriptionPngUri(pngUri);
+        setReviewBeforeSubmit(true);
     };
 
     const printData = useMemo(() => {
@@ -1333,9 +1431,9 @@ function Prescription({ navigation, route }) {
                             style={styles.saveButton}
                             onPress={onPressSave}
                             activeOpacity={0.9}
-                            disabled={generatingPreview}
+                            disabled={generatingPreview || submittingPrescription}
                         >
-                            {generatingPreview ? (
+                            {generatingPreview || submittingPrescription ? (
                                 <ActivityIndicator size="small" color="#FFFFFF" />
                             ) : (
                                 <Text style={styles.saveButtonText}>PRESCRIBE</Text>
@@ -1453,21 +1551,87 @@ function Prescription({ navigation, route }) {
                     )}
                 </View>
 
+                {/* Incomplete Prescription Modal */}
+                <Modal
+                    visible={incompleteModalVisible}
+                    animationType="fade"
+                    transparent
+                    onRequestClose={() => setIncompleteModalVisible(false)}
+                >
+                    <View style={styles.modalOverlay}>
+                        <View style={styles.modalCard}>
+                            <View style={styles.modalHeader}>
+                                <Text style={styles.modalTitle}>Incomplete Prescription</Text>
+                                <TouchableOpacity
+                                    onPress={() => setIncompleteModalVisible(false)}
+                                    style={styles.modalClose}
+                                    activeOpacity={0.9}
+                                >
+                                    <Ionicons name="close" size={18} color="#111827" />
+                                </TouchableOpacity>
+                            </View>
+
+                            <Text style={styles.modalBodyText}>{incompleteModalMessage}</Text>
+
+                            <View style={styles.modalButtonRow}>
+                                <TouchableOpacity
+                                    style={[styles.modalButton, styles.modalButtonDone]}
+                                    onPress={() => setIncompleteModalVisible(false)}
+                                    activeOpacity={0.9}
+                                >
+                                    <Text style={styles.modalButtonText}>OK</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+                </Modal>
+
                 {/* PNG overlay modal */}
                 <Modal
                     visible={previewVisible}
                     animationType="fade"
                     transparent
-                    onRequestClose={() => setPreviewVisible(false)}
+                    onRequestClose={closePrescriptionPreview}
                 >
                     <View style={styles.previewOverlay}>
-                        <TouchableOpacity
-                            style={styles.previewCloseButton}
-                            onPress={() => setPreviewVisible(false)}
-                            activeOpacity={0.9}
-                        >
-                            <Ionicons name="close" size={18} color="#111827" />
-                        </TouchableOpacity>
+                        {reviewBeforeSubmit ? (
+                            <>
+                                <TouchableOpacity
+                                    style={[styles.previewTopButton, styles.previewTopLeftButton]}
+                                    onPress={closePrescriptionPreview}
+                                    activeOpacity={0.9}
+                                    disabled={submittingPrescription}
+                                >
+                                    <Ionicons name="arrow-back" size={20} color="#111827" />
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={[
+                                        styles.previewTopButton,
+                                        styles.previewTopRightButton,
+                                        styles.previewSubmitButton,
+                                        submittingPrescription && styles.previewTopButtonDisabled,
+                                    ]}
+                                    onPress={confirmSubmitPrescription}
+                                    activeOpacity={0.9}
+                                    disabled={submittingPrescription}
+                                >
+                                    {submittingPrescription ? (
+                                        <ActivityIndicator size="small" color="#FFFFFF" />
+                                    ) : (
+                                        <Ionicons name="checkmark" size={22} color="#FFFFFF" />
+                                    )}
+                                </TouchableOpacity>
+                            </>
+                        ) : (
+                            <TouchableOpacity
+                                style={[styles.previewTopButton, styles.previewTopRightButton]}
+                                onPress={closePrescriptionPreview}
+                                activeOpacity={0.9}
+                            >
+                                <Ionicons name="close" size={20} color="#111827" />
+                            </TouchableOpacity>
+                        )}
 
                         {previewUri ? (
                             <Image source={{ uri: previewUri }} style={styles.previewImage} resizeMode="contain" />
@@ -2111,17 +2275,28 @@ const styles = StyleSheet.create({
         height: '100%',
         maxWidth: 420,
     },
-    previewCloseButton: {
+    previewTopButton: {
         position: 'absolute',
         top: 40,
-        right: 20,
-        width: 38,
-        height: 38,
-        borderRadius: 19,
+        width: 40,
+        height: 40,
+        borderRadius: 20,
         backgroundColor: '#FFFFFF',
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 10,
+    },
+    previewTopLeftButton: {
+        left: 20,
+    },
+    previewTopRightButton: {
+        right: 20,
+    },
+    previewSubmitButton: {
+        backgroundColor: '#31C200',
+    },
+    previewTopButtonDisabled: {
+        opacity: 0.7,
     },
 
     // Print-like prescription layout (PNG)
@@ -2319,6 +2494,13 @@ const styles = StyleSheet.create({
         color: '#6B7280',
         fontSize: 12,
         lineHeight: 16,
+    },
+    modalBodyText: {
+        marginTop: 10,
+        marginBottom: 2,
+        color: '#374151',
+        fontSize: 13,
+        lineHeight: 18,
     },
     signaturePadContainer: {
         height: 260,

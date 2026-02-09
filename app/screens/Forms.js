@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { databases, account, appwriteConfig, ID, Query } from './appwriteConfig';
 import { getCurrentStaffProfile, STAFF_ROLE } from './staffProfileService';
+import { logActivity } from './activityLogsService';
 
 // Image Upload Service
 import { uploadMultipleImages, deleteUploadedFiles, checkNetwork } from './imageUploadService';
@@ -361,6 +362,7 @@ const Forms = ({ navigation }) => {
                 barangay: formData.barangay,
                 recordedByUserID: user.$id,
                 recordedByHWID: staffRole === STAFF_ROLE.BHW ? (worker.healthWorkerId || worker.$id) : worker.$id,
+                status: staffRole === STAFF_ROLE.BHW ? 'pending' : formattedData.status,
                 submissionID,
                 dateSubmitted: new Date().toISOString(),
             };
@@ -377,6 +379,20 @@ const Forms = ({ navigation }) => {
                 25000,
                 'Timed out while saving your record. Please try again.'
             );
+
+            // Activity log: Submit (BHW only)
+            try {
+                if (staffRole === STAFF_ROLE.BHW) {
+                    await logActivity({
+                        action: 'Submit',
+                        description: 'Submitted new patient record',
+                        staffRole,
+                        workerProfile: worker,
+                    });
+                }
+            } catch (e) {
+                console.log('Activity log skipped:', e?.message || String(e));
+            }
 
             setUploadProgress(100);
             setUploadStatus('Complete!');

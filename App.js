@@ -8,7 +8,8 @@ import {
     TouchableOpacity,
     Image,
     Dimensions, 
-    Platform, // Still needed for Android checks
+  Platform, // Still needed for Android checks
+  AppState,
 } from "react-native";
 
 
@@ -24,7 +25,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { navigationRef } from './app/navigation/RootNavigation';
 import { registerForPushNotificationsAsync, savePushTokenForCurrentUser } from './app/notifications/notificationService';
-import { getCurrentStaffProfile, STAFF_ROLE } from './app/screens/staffProfileService';
+import { getCurrentStaffProfile, STAFF_ROLE, updatePresenceForCurrentUser } from './app/screens/staffProfileService';
 
 console.log('APP_BOOT: App.js evaluated');
 
@@ -225,6 +226,7 @@ function AppStack() {
 export default function App() {
   const [bannerNotification, setBannerNotification] = useState(null);
   const notificationHideTimer = useRef(null);
+  const heartbeatTimerRef = useRef(null);
 
   const clearBannerNotification = useCallback(() => {
     if (notificationHideTimer.current) {
@@ -232,6 +234,46 @@ export default function App() {
       notificationHideTimer.current = null;
     }
     setBannerNotification(null);
+  }, []);
+
+  useEffect(() => {
+    const sendHeartbeat = async () => {
+      try {
+        await updatePresenceForCurrentUser({ isOnline: true });
+      } catch (e) {
+        // ignore when not logged in or missing schema
+      }
+    };
+
+    const startHeartbeat = () => {
+      if (heartbeatTimerRef.current) return;
+      sendHeartbeat();
+      heartbeatTimerRef.current = setInterval(sendHeartbeat, 60 * 1000);
+    };
+
+    const stopHeartbeat = () => {
+      if (heartbeatTimerRef.current) {
+        clearInterval(heartbeatTimerRef.current);
+        heartbeatTimerRef.current = null;
+      }
+    };
+
+    const handleAppStateChange = (nextState) => {
+      if (nextState === 'active') {
+        startHeartbeat();
+      } else {
+        stopHeartbeat();
+        updatePresenceForCurrentUser({ isOnline: false, lastSeenAt: new Date() }).catch(() => {});
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    startHeartbeat();
+
+    return () => {
+      stopHeartbeat();
+      subscription?.remove?.();
+    };
   }, []);
 
   const navigateFromNotificationData = useCallback((data) => {

@@ -26,6 +26,11 @@ export const appwriteConfig = {
   vaccinationCollectionId: process.env.EXPO_PUBLIC_VACCINATION_COLLECTION_ID,
   rabedDatabaseId: process.env.EXPO_PUBLIC_RABED_DATABASE_ID,
   rabedCollectionId: process.env.EXPO_PUBLIC_RABED_COLLECTION_ID,
+  itManagementDatabaseId: process.env.EXPO_PUBLIC_IT_MANAGEMENT_DATABASE_ID,
+  securityEventsCollectionId: process.env.EXPO_PUBLIC_SECURITY_EVENTS_COLLECTION_ID,
+  disableAuthUserFunctionId: process.env.EXPO_PUBLIC_DISABLE_AUTH_USER_FUNCTION_ID,
+  activityLogsCollectionId: process.env.EXPO_PUBLIC_ACTIVITY_LOGS_COLLECTION_ID,
+  activityLoggerFunctionId: process.env.EXPO_PUBLIC_ACTIVITY_LOGGER_FUNCTION_ID,
 };
 
 // --- EXPORT SERVICES ---

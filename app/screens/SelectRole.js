@@ -5,18 +5,23 @@ import {
     Dimensions,
     Image,
     ImageBackground,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
     View,
-    Platform,
 } from "react-native";
 import Checkbox from "expo-checkbox";
 import * as FileSystem from 'expo-file-system/legacy';
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-icons";
 import { account, appwriteConfig, databases, Query } from "./appwriteConfig";
 import { registerForPushNotificationsAsync, savePushTokenForCurrentUser } from "../notifications/notificationService";
+import { getBhwAccessiblePatientRecordOwnerFilters, updateLastLoginAtForCurrentUser, updatePresenceForCurrentUser } from "./staffProfileService";
+import { logFailedLoginEvent, logSuspiciousLoginEvent, isIdentifierRegistered, logSuccessfulLoginEvent } from "./securityEventsService";
+import { logActivity } from './activityLogsService';
 import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold } from "@expo-google-fonts/poppins";
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -102,12 +107,14 @@ const buildWorkerContextFromSession = async (authUser) => {
     }
     const workerProfile = staffRes.documents[0];
 
+    const ownerFilters = await getBhwAccessiblePatientRecordOwnerFilters(workerProfile);
     const recordsRes = await databases.listDocuments(
         appwriteConfig.patientDatabaseId,
         appwriteConfig.patientRecordsCollectionId,
         [
-            Query.equal('purok', workerProfile.purok),
-            Query.equal('barangay', workerProfile.barangay)
+            ...ownerFilters,
+            Query.orderDesc('$createdAt'),
+            Query.limit(100),
         ]
     );
 
@@ -318,9 +325,14 @@ function SelectRole({ navigation }) {
             return;
         }
         setIsLoading(true);
+        let workerEmail = '';
+        let workerProfile = null;
+        let authUserId = '';
+        let securityEventResult = null;
+        const accessPoint = role === ROLE.PHYSICIAN ? 'Mobile: Physician' : 'Mobile: BHW';
         try {
             await deleteCurrentSession();
-            let workerProfile, workerEmail, authUserId, records = [];
+            let records = [];
             if (role === ROLE.BHW) {
                 // BHW login flow
                 const staffRes = await databases.listDocuments(
@@ -339,6 +351,18 @@ function SelectRole({ navigation }) {
                 await account.createEmailPasswordSession(workerEmail, password);
                 const newCurrentUser = await account.get();
                 authUserId = newCurrentUser.$id;
+
+                // Update lastLoginAt for staff profile (HealthWorkers / Physician_Accounts)
+                try {
+                    await updateLastLoginAtForCurrentUser();
+                } catch (e) {
+                    console.log('Skipping lastLoginAt update:', e?.message || String(e));
+                }
+                try {
+                    await updatePresenceForCurrentUser({ isOnline: true });
+                } catch (e) {
+                    console.log('Skipping presence update:', e?.message || String(e));
+                }
                 try {
                     const expoToken = await registerForPushNotificationsAsync();
                     if (expoToken) {
@@ -347,12 +371,14 @@ function SelectRole({ navigation }) {
                 } catch (tokenError) {
                     console.log("Push token registration failed:", tokenError);
                 }
+                const ownerFilters = await getBhwAccessiblePatientRecordOwnerFilters(workerProfile);
                 const recordsRes = await databases.listDocuments(
                     appwriteConfig.patientDatabaseId,
                     appwriteConfig.patientRecordsCollectionId,
                     [
-                        Query.equal('purok', workerProfile.purok),
-                        Query.equal('barangay', workerProfile.barangay)
+                        ...ownerFilters,
+                        Query.orderDesc('$createdAt'),
+                        Query.limit(100),
                     ]
                 );
                 records = recordsRes.documents || [];
@@ -377,6 +403,18 @@ function SelectRole({ navigation }) {
                     throw new Error('Physician profile not found.');
                 }
                 workerProfile = staffRes.documents[0];
+
+                // Update lastLoginAt for staff profile (HealthWorkers / Physician_Accounts)
+                try {
+                    await updateLastLoginAtForCurrentUser();
+                } catch (e) {
+                    console.log('Skipping lastLoginAt update:', e?.message || String(e));
+                }
+                try {
+                    await updatePresenceForCurrentUser({ isOnline: true });
+                } catch (e) {
+                    console.log('Skipping presence update:', e?.message || String(e));
+                }
 
                 try {
                     const expoToken = await registerForPushNotificationsAsync();
@@ -408,9 +446,106 @@ function SelectRole({ navigation }) {
                 console.log('Failed to save rememberMe identifier:', prefError);
             }
 
+            try {
+                await logSuccessfulLoginEvent({
+                    userEmail: workerEmail || idOrEmail,
+                    accessPoint,
+                    authUserId,
+                });
+            } catch (logError) {
+                console.log('Security event log skipped:', logError?.message || String(logError));
+            }
+
+            try {
+                await logActivity({
+                    action: 'Login',
+                    description: 'Successful login',
+                    staffRole: role,
+                    workerProfile,
+                });
+            } catch (e) {
+                console.log('Activity log skipped:', e?.message || String(e));
+            }
+
             navigateToMain(navigation, authUserId, workerProfile, records);
         } catch (error) {
             console.error('Login Error:', error);
+
+            try {
+                const resolveAuthUserIdForLog = async () => {
+                    if (authUserId) return authUserId;
+                    if (workerProfile?.auth_user_id) return workerProfile.auth_user_id;
+
+                    if (role === ROLE.PHYSICIAN && workerEmail && appwriteConfig.physicianAccountsCollectionId) {
+                        try {
+                            const res = await databases.listDocuments(
+                                appwriteConfig.staffDatabaseId,
+                                appwriteConfig.physicianAccountsCollectionId,
+                                [Query.equal('email', workerEmail), Query.limit(1)]
+                            );
+                            return res.documents?.[0]?.auth_user_id || null;
+                        } catch (lookupError) {
+                            console.log('Physician auth_user_id lookup skipped:', lookupError?.message || String(lookupError));
+                        }
+                    }
+
+                    if (role === ROLE.BHW && idOrEmail) {
+                        try {
+                            const res = await databases.listDocuments(
+                                appwriteConfig.staffDatabaseId,
+                                appwriteConfig.healthWorkersCollectionId,
+                                [Query.equal('healthWorkerID', idOrEmail.trim()), Query.limit(1)]
+                            );
+                            return res.documents?.[0]?.auth_user_id || null;
+                        } catch (lookupError) {
+                            console.log('BHW auth_user_id lookup skipped:', lookupError?.message || String(lookupError));
+                        }
+                    }
+
+                    return null;
+                };
+
+                const resolvedAuthUserId = await resolveAuthUserIdForLog();
+
+                if (error.message.includes('Invalid Health Worker ID')) {
+                    const registered = await isIdentifierRegistered(idOrEmail);
+                    if (!registered) {
+                        securityEventResult = await logSuspiciousLoginEvent({
+                            attemptedIdentifier: idOrEmail,
+                            accessPoint,
+                        });
+                    } else {
+                        securityEventResult = await logFailedLoginEvent({
+                            userEmail: workerEmail || idOrEmail,
+                            accessPoint,
+                            authUserId: resolvedAuthUserId,
+                        });
+                    }
+                } else if (error.name === 'AppwriteException' && error.message.includes('Invalid credentials')) {
+                    const registered = await isIdentifierRegistered(idOrEmail);
+                    if (!registered) {
+                        securityEventResult = await logSuspiciousLoginEvent({
+                            attemptedIdentifier: idOrEmail,
+                            accessPoint,
+                        });
+                    } else {
+                        securityEventResult = await logFailedLoginEvent({
+                            userEmail: workerEmail || idOrEmail,
+                            accessPoint,
+                            authUserId: resolvedAuthUserId,
+                        });
+                    }
+                } else {
+                    securityEventResult = await logFailedLoginEvent({
+                        userEmail: workerEmail || idOrEmail,
+                        accessPoint,
+                        authUserId: resolvedAuthUserId,
+                    });
+                }
+            } catch (logError) {
+                console.log('Security event log skipped:', logError?.message || String(logError));
+            }
+
             let errorMessage = 'Login failed. Please check your credentials.';
             if (error.message.includes('Invalid Health Worker ID')) {
                 errorMessage = 'Invalid Health Worker ID.';
@@ -425,6 +560,10 @@ function SelectRole({ navigation }) {
             } else if (error.name === 'AppwriteException' && error.message.includes('Invalid credentials')) {
                 errorMessage = 'Invalid email or password.';
             }
+
+            if (securityEventResult?.eventType === 'Account locked') {
+                errorMessage = 'Account locked after multiple failed login attempts.';
+            }
             Alert.alert('Login Failed', errorMessage);
         } finally {
             setIsLoading(false);
@@ -432,18 +571,27 @@ function SelectRole({ navigation }) {
     };
 
     return (
-        <ImageBackground
+        <KeyboardAvoidingView
             style={styles.background}
-            source={require("../assets/bg-blue.png")}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
-            <View style={styles.headerContainer}>
-                <View style={styles.header}>
-                    <Text style={styles.welcomeText}>Mabuhay og Madayaw,</Text>
-                    <Text style={styles.cityText}>Tagumeños!</Text>
-                    <Text style={styles.subText}>Welcome to RAVEN!</Text>
-                </View>
-            </View>
-            <View style={styles.loginBox}>
+            <ImageBackground
+                style={styles.background}
+                source={require("../assets/bg-blue.png")}
+            >
+                <ScrollView
+                    contentContainerStyle={styles.scrollContent}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                >
+                    <View style={styles.headerContainer}>
+                        <View style={styles.header}>
+                            <Text style={styles.welcomeText}>Mabuhay og Madayaw,</Text>
+                            <Text style={styles.cityText}>Tagumeños!</Text>
+                            <Text style={styles.subText}>Welcome to RAVEN!</Text>
+                        </View>
+                    </View>
+                    <View style={styles.loginBox}>
                 <Text style={styles.selectRoleTitle}>SELECT ROLE</Text>
                 <View style={styles.roleContainer}>
                     <TouchableOpacity
@@ -536,14 +684,17 @@ function SelectRole({ navigation }) {
                         <Text style={styles.loginButtonText}>Login</Text>
                     )}
                 </TouchableOpacity>
-                <Image source={require("../assets/CityHall-img.png")} style={styles.footerImage} />
-            </View>
-        </ImageBackground>
+                        <Image source={require("../assets/CityHall-img.png")} style={styles.footerImage} />
+                    </View>
+                </ScrollView>
+            </ImageBackground>
+        </KeyboardAvoidingView>
     );
 }
 
 const styles = StyleSheet.create({
     background: { flex: 1 },
+    scrollContent: { flexGrow: 1 },
     headerContainer: { flex: 1, justifyContent: 'center', paddingHorizontal: 35 },
     header: {},
     welcomeText: { fontSize: 16, color: "#125872", fontWeight: "bold", lineHeight: 20, fontFamily: "Poppins-Bold", letterSpacing: -1, marginBottom: -5 },

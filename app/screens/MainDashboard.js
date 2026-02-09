@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import {
-    ImageBackground,
     StyleSheet,
     Text,
     View,
@@ -17,8 +16,9 @@ import { useFocusEffect } from '@react-navigation/native';
 // --- Appwrite Imports ---
 import { databases, appwriteConfig, account, Query } from './appwriteConfig';
 import { fetchAnimalBiteReportData } from './reportAnalyticsService';
-import { getCurrentStaffProfile, getStaffHeaderLocation, STAFF_ROLE } from './staffProfileService';
+import { getBhwAccessiblePatientRecordOwnerFilters, getCurrentStaffProfile, getStaffHeaderLocation, STAFF_ROLE, updatePresenceForCurrentUser } from './staffProfileService';
 import LogOut from './LogOut';
+import { logActivity } from './activityLogsService';
 
 const { width } = Dimensions.get('window');
 
@@ -70,23 +70,12 @@ function MainDashboard({ navigation, openSidebar }) {
             const user = await account.get();
             const isPhysician = staffRole === STAFF_ROLE.PHYSICIAN;
 
-            // BHW: show only records created by this worker
+            // BHW: can access records submitted by any BHW with the same purok+barangay
+            // (case-insensitive match using HealthWorkers table)
             // Physician: can access ALL patient records
             const submittedOwnerFilter = isPhysician
                 ? []
-                : [
-                    (() => {
-                        const workerHwId =
-                            workerProfile.healthWorkerId ||
-                            workerProfile.healthWorkerID ||
-                            workerProfile.healthWorkerIDNumber ||
-                            workerProfile.$id;
-                        return Query.or([
-                            Query.equal('recordedByUserID', user.$id),
-                            Query.equal('recordedByHWID', workerHwId),
-                        ]);
-                    })(),
-                ];
+                : await getBhwAccessiblePatientRecordOwnerFilters(workerProfile);
 
             // Fetch counts first so the dashboard can render quickly.
             const [submittedRes, verifiedRes, terminatedRes] = await Promise.all([
@@ -162,6 +151,15 @@ function MainDashboard({ navigation, openSidebar }) {
     const handleConfirmLogout = useCallback(async () => {
         setLogoutVisible(false);
         try {
+            try {
+                await logActivity({
+                    action: 'Logout',
+                    description: 'Successfully logout',
+                });
+            } catch (e2) {
+                console.log('Activity log skipped:', e2?.message || String(e2));
+            }
+            await updatePresenceForCurrentUser({ isOnline: false, lastSeenAt: new Date() });
             await account.deleteSession('current');
         } catch (e) {
             // ignore if already logged out
@@ -182,31 +180,31 @@ function MainDashboard({ navigation, openSidebar }) {
     // ⏳ LOADING
     if (isLoading || !workerProfile) {
         return (
-            <ImageBackground style={styles.background} source={require("../assets/bg-blue.png")}>
+            <View style={styles.background}>
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color="#125872" />
                     <Text style={styles.loadingText}>Loading Dashboard...</Text>
                 </View>
-            </ImageBackground>
+            </View>
         );
     }
 
     const pendingSubmitted = Math.max(0, submittedCasesCount - verifiedCasesCount - terminatedCasesCount);
 
     return (
-        <ImageBackground style={styles.background} source={require("../assets/bg-blue.png")}>
+        <View style={styles.background}>
             <View style={styles.screenWrapper}>
                 {/* HEADER */}
                 <View style={styles.topHeader}>
-                    <TouchableOpacity onPress={openSidebar}>
-                        <Ionicons name="menu" size={28} color="#125872" />
+                    <TouchableOpacity onPress={openSidebar} style={styles.menuIconContainer}>
+                        <Ionicons name="menu" size={24} color="#125872" />
                     </TouchableOpacity>
 
                     <Text style={styles.headerTitle}>{getStaffHeaderLocation(workerProfile, staffRole)}</Text>
 
                     <TouchableOpacity onPress={() => navigation.navigate('MyProfile', { workerProfile })}>
                         <View style={styles.profileIcon}>
-                            <Ionicons name="person" size={20} color="white" />
+                            <Ionicons name="person" size={20} color="#125872" />
                         </View>
                     </TouchableOpacity>
                 </View>
@@ -218,14 +216,20 @@ function MainDashboard({ navigation, openSidebar }) {
                             style={styles.mainCard}
                             onPress={() => navigation.navigate("NavigationHeader", { workerProfile })}
                         >
-                            <Text style={[styles.mainCardTitle, { color: '#ffffff' }]}>Submitted cases</Text>
+                            <Text style={styles.mainCardTitle}>Submitted Cases</Text>
                             <View style={styles.mainCardRow}>
                                 <Text style={styles.mainCardNumber}>{submittedCasesCount}</Text>
                                 <View style={styles.mainCardStatus}>
                                     <Text style={styles.statusLabel}>Status:</Text>
-                                    <Text style={styles.statusText}>{pendingSubmitted} pending</Text>
-                                    <Text style={styles.statusText}>{verifiedCasesCount} verified</Text>
-                                    <Text style={styles.statusText}>{terminatedCasesCount} terminated</Text>
+                                    <View style={[styles.statusBadge, styles.statusPending]}>
+                                        <Text style={styles.statusTextPending}>{pendingSubmitted} pending</Text>
+                                    </View>
+                                    <View style={[styles.statusBadge, styles.statusVerified]}>
+                                        <Text style={styles.statusTextVerified}>{verifiedCasesCount} verified</Text>
+                                    </View>
+                                    <View style={[styles.statusBadge, styles.statusTerminated]}>
+                                        <Text style={styles.statusTextTerminated}>{terminatedCasesCount} terminated</Text>
+                                    </View>
                                 </View>
                             </View>
                         </TouchableOpacity>
@@ -247,9 +251,12 @@ function MainDashboard({ navigation, openSidebar }) {
                                     Total Cases this Month
                                 </Text>
                                 <View style={styles.numberWithLabel}>
-                                    <Text style={styles.halfCardNumber}>{monthlyCases} cases</Text>
+                                    <Text style={[styles.halfCardNumber, styles.violetNumber]}>{monthlyCases} cases</Text>
                                 </View>
-                                <Text style={styles.trendText}>Trend: {monthlyTrend >= 0 ? '+' : ''}{monthlyTrend}% from last month</Text>
+                                <View style={styles.trendContainer}>
+                                    <Ionicons name="trending-up" size={12} color="#5A8FA3" />
+                                    <Text style={styles.trendText}>Trend: {monthlyTrend >= 0 ? '+' : ''}{monthlyTrend}%</Text>
+                                </View>
                             </TouchableOpacity>
 
                             {/* ANNUAL BITE REPORTS */}
@@ -267,9 +274,12 @@ function MainDashboard({ navigation, openSidebar }) {
                                     Annual Bite Reports
                                 </Text>
                                 <View style={styles.numberWithLabel}>
-                                    <Text style={styles.halfCardNumber}>{annualCases} reports</Text>
+                                    <Text style={[styles.halfCardNumber, styles.redNumber]}>{annualCases} reports</Text>
                                 </View>
-                                <Text style={styles.trendText}>Trend: {annualTrend >= 0 ? '+' : ''}{annualTrend}% from last year</Text>
+                                <View style={styles.trendContainer}>
+                                    <Ionicons name="trending-up" size={12} color="#5A8FA3" />
+                                    <Text style={styles.trendText}>Trend: {annualTrend >= 0 ? '+' : ''}{annualTrend}%</Text>
+                                </View>
                             </TouchableOpacity>
                         </View>
 
@@ -290,7 +300,6 @@ function MainDashboard({ navigation, openSidebar }) {
                             <Text style={styles.rabEdDescription}>
                                 Rabies Education (RabEd) empowers Tagum City with clear, bite-sized lessons to prevent panic and act wisely.
                             </Text>
-                            <Text style={styles.rabEdLink}>Go to RabEd</Text>
                         </TouchableOpacity>
 
                         <View style={styles.bottomSpacing} />
@@ -304,7 +313,7 @@ function MainDashboard({ navigation, openSidebar }) {
                 onConfirm={handleConfirmLogout}
             />
 
-        </ImageBackground>
+        </View>
     );
 }
 
@@ -312,13 +321,12 @@ function MainDashboard({ navigation, openSidebar }) {
 const styles = StyleSheet.create({
     background: { 
         flex: 1,
-        backgroundColor: '#E8F4F8',
+        backgroundColor: '#F5FAFB',
     },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.7)',
     },
     loadingText: { 
         color: '#125872', 
@@ -353,29 +361,42 @@ const styles = StyleSheet.create({
         letterSpacing: -0.5,
         textAlign: 'center',
     },
+    menuIconContainer: {
+        width: 40,
+        height: 40,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: 'transparent',
+    },
     profileIcon: {
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: '#125872',
+        backgroundColor: '#E8F5F9',
         justifyContent: 'center',
         alignItems: 'center',
+        borderWidth: 2,
+        borderColor: 'transparent',
     },
     
     // MAIN CARD - SUBMITTED CASES
     mainCard: {
-        backgroundColor: "#125872",
+        backgroundColor: "#E8F5F9",
         borderRadius: 20,
-        padding: 18,
+        padding: 20,
         marginBottom: 15,
-        shadowColor: "#000",
-        shadowOpacity: 0.15,
-        shadowRadius: 4,
-        elevation: 4,
+        shadowColor: "#125872",
+        shadowOpacity: 0.12,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 4 },
+        elevation: 6,
+        borderLeftWidth: 5,
+        borderLeftColor: '#125872',
     },
     mainCardTitle: { 
         fontSize: 26, 
-        color: "white", 
+        color: "#125872", 
         fontWeight: "800", 
         marginBottom: 12,
         letterSpacing: -0.5,
@@ -387,7 +408,7 @@ const styles = StyleSheet.create({
     },
     mainCardNumber: { 
         fontSize: 72, 
-        color: "white", 
+        color: "#125872", 
         fontWeight: "900", 
         lineHeight: 72,
     },
@@ -396,17 +417,47 @@ const styles = StyleSheet.create({
         paddingBottom: -4,
     },
     statusLabel: { 
-        color: "white", 
-        fontWeight: "600", 
-        marginBottom: 6, 
+        color: "#125872", 
+        fontWeight: "700", 
+        marginBottom: 8, 
         fontSize: 13 
     },
+    statusBadge: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 8,
+        marginTop: 4,
+        width: 100,
+        alignItems: 'flex-end',
+    },
+    statusPending: {
+        backgroundColor: '#FFF9E6',
+    },
+    statusVerified: {
+        backgroundColor: '#E8F8F0',
+    },
+    statusTerminated: {
+        backgroundColor: '#FFE8E8',
+    },
     statusText: { 
-        fontSize: 13, 
-        color: "white", 
-        opacity: 0.95, 
-        marginTop: 3,
-        lineHeight: 16,
+        fontSize: 12, 
+        color: "#125872", 
+        fontWeight: '600',
+    },
+    statusTextPending: { 
+        fontSize: 12, 
+        color: "#B8860B", 
+        fontWeight: '600',
+    },
+    statusTextVerified: { 
+        fontSize: 12, 
+        color: "#2E8B57", 
+        fontWeight: '600',
+    },
+    statusTextTerminated: { 
+        fontSize: 12, 
+        color: "#C9302C", 
+        fontWeight: '600',
     },
     
     // TWO COLUMN LAYOUT
@@ -424,21 +475,21 @@ const styles = StyleSheet.create({
         marginLeft: 6,
     },
     halfCard: {
-        backgroundColor: 'white',
-        borderRadius: 15,
-        padding: 15,
-        borderWidth: 2.5,
-        borderColor: '#125872',
-        shadowColor: "#000",
-        shadowOpacity: 0.1,
-        shadowRadius: 3,
-        elevation: 2,
+        backgroundColor: '#ffffff',
+        borderRadius: 18,
+        padding: 16,
+        borderWidth: 0,
+        shadowColor: "#125872",
+        shadowOpacity: 0.08,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 3 },
+        elevation: 3,
     },
     halfCardTitle: {
         fontSize: 16,
-        fontWeight: '900',
+        fontWeight: '800',
         color: '#125872',
-        marginBottom: 0,
+        marginBottom: 2,
         letterSpacing: -0.5,
         textAlign: 'center',
     },
@@ -449,13 +500,25 @@ const styles = StyleSheet.create({
         color: '#125872',
         textAlign: 'center',
     },
+    violetNumber: {
+        color: '#7B68EE',
+    },
+    redNumber: {
+        color: '#E85D75',
+    },
+    trendContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 4,
+        marginTop: 2,
+    },
     trendText: {
-        fontSize: 12,
+        fontSize: 10,
         letterSpacing: -0.5,
-        color: '#125872',
+        color: '#5A8FA3',
         fontWeight: '500',
-        textAlign: 'center',
-        paddingBottom: -5,
+        opacity: 0.85,
     },
     numberWithLabel: {
         flexDirection: 'row',
@@ -475,36 +538,32 @@ const styles = StyleSheet.create({
     
     // RABIES EDUCATION CARD
     rabEdCard: {
-        backgroundColor: '#125872',
-        borderRadius: 12,
-        padding: 16,
+        backgroundColor: '#E8F5F9',
+        borderRadius: 18,
+        padding: 20,
         marginBottom: 12,
-        shadowColor: "#000",
-        shadowOpacity: 0.15,
-        shadowRadius: 4,
+        shadowColor: "#125872",
+        shadowOpacity: 0.10,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 3 },
         elevation: 4,
+        borderTopWidth: 4,
+        borderTopColor: '#125872',
     },
     rabEdTitle: {
         fontSize: 24,
         fontWeight: '800',
-        color: 'white',
+        color: '#125872',
         letterSpacing: -0.5,
-        marginBottom: 5,
+        marginBottom: 4,
     },
     rabEdDescription: {
         fontSize: 14,
-        color: 'white',
-        lineHeight: 18,
-        marginBottom: 12,
-        marginTop: 5,
-        opacity: 0.95,
-    },
-    rabEdLink: {
-        fontSize: 13,
-        color: 'white',
-        fontWeight: '600',
-        textDecorationLine: 'underline',
-        marginBottom: 10,
+        color: '#4A7485',
+        lineHeight: 20,
+        marginBottom: 0,
+        marginTop: 0,
+        opacity: 0.90,
     },
     
     bottomSpacing: {

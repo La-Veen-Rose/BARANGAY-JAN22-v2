@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, TextInput, Alert, ScrollView } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, TextInput, Alert, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold } from "@expo-google-fonts/poppins";
@@ -249,20 +249,22 @@ export default function MyProfile({ navigation, route }) {
         return (
             <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
                 <ActivityIndicator size="large" color="#125872" />
-                <Text style={{ marginTop: 10, color: "#125872", fontFamily: "Poppins-Regular" }}>Loading profile...</Text>
+                <Text style={{ marginTop: 10, color: "#6B7C87", fontFamily: "Poppins-Regular" }}>Loading profile...</Text>
             </View>
         );
     }
 
     return (
-        <View style={styles.container}>
-            {/* BACK BUTTON + TITLE */}
+        <KeyboardAvoidingView
+            style={styles.container}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+            {/* BACK BUTTON */}
             <View style={styles.topHeader}>
                 <TouchableOpacity onPress={() => navigation.goBack()}>
-                    <Ionicons name="arrow-back-circle-outline" size={32} color="#125872" />
+                    <Ionicons name="arrow-back" size={24} color="#2C3E50" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>My Profile</Text>
-                <View style={{ width: 24 }} />
+                <Text style={styles.backText}>Back</Text>
             </View>
 
             <ScrollView 
@@ -270,187 +272,184 @@ export default function MyProfile({ navigation, route }) {
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
             >
-                {/* INFO CARD */}
-                <View style={styles.infoCard}>
+                {/* HEADER CARD */}
+                <View style={styles.headerCard}>
+                    <View style={styles.avatarContainer}>
+                        <Ionicons name="person" size={40} color="#ffffff" />
+                    </View>
+                    <View style={styles.profileTextContainer}>
+                        <Text style={styles.profileName}>{displayName}</Text>
+                        <Text style={styles.profileRole}>{isPhysician ? displayDesignation : displayRole}</Text>
+                    </View>
+                </View>
+
+                {/* INFO FIELDS */}
+                <View style={styles.fieldsContainer}>
                     {isPhysician ? (
                         <>
-                            <ProfileField icon="id-card-outline" label="License No" value={displayLicenseNo} />
-                            <ProfileField icon="person-outline" label="Name" value={displayName} />
-                            <ProfileField icon="mail-outline" label="Email" value={displayEmail} />
-                            <ProfileField icon="people-outline" label="Designation" value={displayDesignation} />
-                            <ProfileField icon="location-outline" label="Office" value={displayOffice} />
+                            <ProfileField icon="mail" label="Email" value={displayEmail} />
+                            <ProfileField icon="call" label="Phone Number" value={displayPhone} isEditing={isEditing} editValue={newPhone} onChangeText={setNewPhone} isPhone />
+                            <ProfileField icon="people" label="Designation" value={displayDesignation} />
+                            <ProfileField icon="id-card" label="License No." value={displayLicenseNo} />
+                            <ProfileField icon="business" label="Office" value={displayOffice} />
+                            {isEditing ? (
+                                <PasswordField 
+                                    icon="key" 
+                                    label="New Password (optional)" 
+                                    value={newPassword}
+                                    onChangeText={setNewPassword}
+                                    placeholder="Enter new password"
+                                    showPassword={showNewPassword}
+                                    toggleShowPassword={() => setShowNewPassword(!showNewPassword)}
+                                />
+                            ) : (
+                                <ProfileField icon="lock-closed" label="Password" value="**********" />
+                            )}
                         </>
                     ) : (
                         <>
-                            <ProfileField icon="id-card-outline" label="Health Worker ID" value={displayHWID} />
-                            <ProfileField icon="person-outline" label="Name" value={displayName} />
-                            <ProfileField icon="mail-outline" label="Email" value={displayEmail} />
-                            <ProfileField icon="people-outline" label="Role" value={displayRole} />
-                            <ProfileField icon="location-outline" label="Barangay Health Station" value={displayLocation || "N/A"} />
+                            <ProfileField icon="id-card" label="Health Worker ID" value={displayHWID} />
+                            <ProfileField icon="person" label="Name" value={displayName} />
+                            <ProfileField icon="mail" label="Email" value={displayEmail} />
+                            <ProfileField icon="people" label="Role" value={displayRole} />
+                            <ProfileField icon="location" label="Barangay Health Station" value={displayLocation || "N/A"} />
+                            <ProfileField icon="call" label="Phone Number" value={displayPhone} isEditing={isEditing} editValue={newPhone} onChangeText={setNewPhone} isPhone />
+                            {isEditing ? (
+                                <PasswordField 
+                                    icon="key" 
+                                    label="New Password (optional)" 
+                                    value={newPassword}
+                                    onChangeText={setNewPassword}
+                                    placeholder="Enter new password"
+                                    showPassword={showNewPassword}
+                                    toggleShowPassword={() => setShowNewPassword(!showNewPassword)}
+                                />
+                            ) : (
+                                <ProfileField icon="lock-closed" label="Password" value="**********" />
+                            )}
                         </>
                     )}
-                
-                {/* Editable Password Field */}
-                {isEditing ? (
-                    <>
-                        <PasswordField 
-                            icon="key-outline" 
-                            label="New Password (Leave blank to keep current)" 
-                            value={newPassword}
-                            onChangeText={setNewPassword}
-                            placeholder="Enter new password"
-                            showPassword={showNewPassword}
-                            toggleShowPassword={() => setShowNewPassword(!showNewPassword)}
-                        />
-                    </>
-                ) : (
-                    <ProfileField icon="lock-closed-outline" label="Password" value="***********" />
-                )}
-                
-                {/* Editable Phone Field */}
-                {isEditing ? (
-                    <PhoneField 
-                        icon="call-outline" 
-                        label="Phone Number" 
-                        value={newPhone}
-                        onChangeText={setNewPhone}
-                        placeholder="XX XXX XXXX"
-                    />
-                ) : (
-                    <ProfileField icon="call-outline" label="Phone Number" value={displayPhone} />
-                )}
 
-                {/* Current Password - Only show in edit mode */}
-                {isEditing && (
-                    <PasswordField 
-                        icon="lock-closed-outline" 
-                        label="Current Password (Required to save changes)" 
-                        value={currentPassword}
-                        onChangeText={setCurrentPassword}
-                        placeholder="Enter current password"
-                        showPassword={showCurrentPassword}
-                        toggleShowPassword={() => setShowCurrentPassword(!showCurrentPassword)}
-                    />
-                )}
-            </View>
+                    {/* Current Password - Only show in edit mode */}
+                    {isEditing && (
+                        <PasswordField 
+                            icon="lock-closed" 
+                            label="Confirm Password *" 
+                            value={currentPassword}
+                            onChangeText={setCurrentPassword}
+                            placeholder="Confirm new password"
+                            showPassword={showCurrentPassword}
+                            toggleShowPassword={() => setShowCurrentPassword(!showCurrentPassword)}
+                        />
+                    )}
+                </View>
 
             </ScrollView>
 
-            {/* BUTTONS SIDE BY SIDE - Outside ScrollView for bottom positioning */}
+            {/* BUTTONS */}
             <View style={styles.btnRow}>
                 {isEditing ? (
                     <>
-                        <TouchableOpacity style={styles.secondaryButton} onPress={handleCancel}>
-                            <Text style={styles.secondaryButtonText}>Cancel</Text>
+                        <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
+                            <Text style={styles.cancelButtonText}>Cancel</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity 
-                            style={[styles.primaryButton, isSaving && styles.disabledButton]} 
+                            style={[styles.saveButton, isSaving && styles.disabledButton]} 
                             onPress={handleSaveChanges}
                             disabled={isSaving}
                         >
                             {isSaving ? (
-                                <ActivityIndicator size="small" color="#0A4D5C" />
+                                <ActivityIndicator size="small" color="#ffffff" />
                             ) : (
-                                <Text style={styles.primaryButtonText}>Save Changes</Text>
+                                <Text style={styles.saveButtonText}>Save Changes</Text>
                             )}
                         </TouchableOpacity>
                     </>
                 ) : (
                     <>
-                        <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.goBack()}>
-                            <Text style={styles.secondaryButtonText}>Back to Dashboard</Text>
+                        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+                            <Text style={styles.backButtonText}>Back to Dashboard</Text>
                         </TouchableOpacity>
 
-                        <TouchableOpacity style={styles.primaryButton} onPress={handleEditProfile}>
-                            <Text style={styles.primaryButtonText}>Edit Profile</Text>
+                        <TouchableOpacity style={styles.editButton} onPress={handleEditProfile}>
+                            <Text style={styles.editButtonText}>Edit Profile</Text>
                         </TouchableOpacity>
                     </>
                 )}
             </View>
 
-        </View>
+        </KeyboardAvoidingView>
     );
 }
 
-// CUSTOM COMPONENT FIELD (Read-only)
-const ProfileField = ({ label, value, icon }) => (
-    <View style={styles.fieldContainer}>
-        <Ionicons name={icon} size={20} color="#0A4D5C" style={styles.fieldIcon} />
-        <View style={styles.fieldContent}>
-            <Text style={styles.fieldLabel}>{label}</Text>
-            <Text style={styles.fieldValue}>{value}</Text>
-        </View>
-    </View>
-);
+// PROFILE FIELD COMPONENT
+const ProfileField = ({ label, value, icon, isEditing, editValue, onChangeText, isPhone }) => {
+    if (isEditing && isPhone) {
+        return (
+            <View style={styles.fieldCard}>
+                <View style={styles.fieldIconContainer}>
+                    <Ionicons name={icon} size={20} color="#5A8FA8" />
+                </View>
+                <View style={styles.fieldTextContainer}>
+                    <Text style={styles.fieldLabel}>{label} *</Text>
+                    <View style={styles.phoneInputWrapper}>
+                        <Text style={styles.phonePrefix}>+639</Text>
+                        <TextInput
+                            style={styles.fieldInput}
+                            value={editValue}
+                            onChangeText={(text) => {
+                                const cleaned = text.replace(/[^0-9]/g, '').slice(0, 9);
+                                onChangeText(cleaned);
+                            }}
+                            placeholder="XXXXXXXXX"
+                            placeholderTextColor="#B8C9D0"
+                            keyboardType="phone-pad"
+                            maxLength={9}
+                        />
+                    </View>
+                </View>
+            </View>
+        );
+    }
 
-// EDITABLE FIELD COMPONENT
-const EditableField = ({ label, value, icon, onChangeText, placeholder, secureTextEntry, keyboardType }) => (
-    <View style={styles.fieldContainer}>
-        <Ionicons name={icon} size={20} color="#0A4D5C" style={styles.fieldIcon} />
-        <View style={styles.fieldContent}>
-            <Text style={styles.fieldLabel}>{label}</Text>
-            <TextInput
-                style={styles.fieldInput}
-                value={value}
-                onChangeText={onChangeText}
-                placeholder={placeholder}
-                placeholderTextColor="#A0C4CC"
-                secureTextEntry={secureTextEntry}
-                keyboardType={keyboardType}
-            />
+    return (
+        <View style={styles.fieldCard}>
+            <View style={styles.fieldIconContainer}>
+                <Ionicons name={icon} size={20} color="#5A8FA8" />
+            </View>
+            <View style={styles.fieldTextContainer}>
+                <Text style={styles.fieldLabel}>{label}</Text>
+                <Text style={styles.fieldValue}>{value}</Text>
+            </View>
         </View>
-    </View>
-);
+    );
+};
 
 // PASSWORD FIELD WITH EYE ICON
 const PasswordField = ({ label, value, icon, onChangeText, placeholder, showPassword, toggleShowPassword }) => (
-    <View style={styles.fieldContainer}>
-        <Ionicons name={icon} size={20} color="#0A4D5C" style={styles.fieldIcon} />
-        <View style={styles.fieldContent}>
+    <View style={styles.fieldCard}>
+        <View style={styles.fieldIconContainer}>
+            <Ionicons name={icon} size={20} color="#5A8FA8" />
+        </View>
+        <View style={styles.fieldTextContainer}>
             <Text style={styles.fieldLabel}>{label}</Text>
-            <View style={styles.passwordInputContainer}>
+            <View style={styles.passwordInputWrapper}>
                 <TextInput
-                    style={styles.passwordInput}
+                    style={styles.passwordFieldInput}
                     value={value}
                     onChangeText={onChangeText}
                     placeholder={placeholder}
-                    placeholderTextColor="#A0C4CC"
+                    placeholderTextColor="#B8C9D0"
                     secureTextEntry={!showPassword}
                 />
-                <TouchableOpacity onPress={toggleShowPassword} style={styles.eyeIcon}>
+                <TouchableOpacity onPress={toggleShowPassword} style={styles.eyeIconButton}>
                     <Ionicons 
                         name={showPassword ? "eye-outline" : "eye-off-outline"} 
                         size={20} 
-                        color="#A0C4CC" 
+                        color="#9BADB5" 
                     />
                 </TouchableOpacity>
-            </View>
-        </View>
-    </View>
-);
-
-// PHONE FIELD WITH +639 PREFIX
-const PhoneField = ({ label, value, icon, onChangeText, placeholder }) => (
-    <View style={styles.fieldContainer}>
-        <Ionicons name={icon} size={20} color="#0A4D5C" style={styles.fieldIcon} />
-        <View style={styles.fieldContent}>
-            <Text style={styles.fieldLabel}>{label}</Text>
-            <View style={styles.phoneInputContainer}>
-                <Text style={styles.phonePrefix}>+639</Text>
-                <TextInput
-                    style={styles.phoneInput}
-                    value={value}
-                    onChangeText={(text) => {
-                        // Only allow digits and max 9 characters (for the remaining digits)
-                        const cleaned = text.replace(/[^0-9]/g, '').slice(0, 9);
-                        onChangeText(cleaned);
-                    }}
-                    placeholder={placeholder}
-                    placeholderTextColor="#A0C4CC"
-                    keyboardType="phone-pad"
-                    maxLength={9}
-                />
             </View>
         </View>
     </View>
@@ -459,165 +458,162 @@ const PhoneField = ({ label, value, icon, onChangeText, placeholder }) => (
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: "#ffffff",
+        backgroundColor: "#F8FAFB",
     },
 
     topHeader: {
         flexDirection: "row",
         alignItems: "center",
-        justifyContent: "space-between",
         paddingTop: 50,
         paddingHorizontal: 20,
         paddingBottom: 15,
-        backgroundColor: "#ffffff",
+        backgroundColor: "#F8FAFB",
+    },
+
+    backText: {
+        fontSize: 16,
+        color: "#2C3E50",
+        marginLeft: 8,
+        fontFamily: "Poppins-Regular",
     },
 
     scrollContent: {
         flexGrow: 1,
         paddingHorizontal: 20,
-        paddingTop: 20,
         paddingBottom: 40,
     },
 
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: "900",
-        color: "#125872",
-        marginLeft: -10,
-        fontFamily: "Poppins-Bold",
-    },
-
-    profileSection: {
+    headerCard: {
+        backgroundColor: "linear-gradient(135deg, #125872 0%, #357A8F 100%)",
+        backgroundColor: "#125872",
+        borderTopLeftRadius: 16,
+        borderTopRightRadius: 16,
+        borderBottomLeftRadius: 8,
+        borderBottomRightRadius: 8,
+        paddingVertical: 20,
+        paddingHorizontal: 20,
+        flexDirection: "row",
         alignItems: "center",
-        marginTop: 10,
+        marginBottom: 24,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+        elevation: 3,
     },
 
-    profileImageContainer: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        backgroundColor: "#a9bbbfff",
+    avatarContainer: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: "#ffffff33",
         justifyContent: "center",
         alignItems: "center",
+        marginRight: 16,
         borderWidth: 3,
-        borderColor: "#1A6B7C",
+        borderColor: "#ffffff66",
+    },
+
+    profileTextContainer: {
+        flex: 1,
+        justifyContent: "center",
     },
 
     profileName: {
-        fontSize: 18,
-        fontWeight: "bold",
-        color: "#125872",
-        marginTop: 10,
+        fontSize: 22,
+        fontWeight: "700",
+        color: "#ffffff",
+        marginBottom: 4,
         fontFamily: "Poppins-Bold",
     },
 
-    profileSub: {
-        fontSize: 13,
-        color: "#125872",
-        marginTop: 2,
+    profileRole: {
+        fontSize: 14,
+        color: "#E8F4F8",
         fontFamily: "Poppins-Regular",
     },
 
-    infoCard: {
-        marginTop: 20,
-        backgroundColor: "#125872",
-        borderRadius: 30,
-        paddingHorizontal: 25,
-        paddingVertical: 25,
-        paddingTop: 40,
-        width: "100%",
+    fieldsContainer: {
+        gap: 12,
     },
 
-    fieldContainer: {
+    fieldCard: {
         flexDirection: "row",
-        marginBottom: 18,
-        alignItems: "flex-start",
+        backgroundColor: "#ffffff",
+        borderRadius: 12,
+        padding: 16,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 2,
     },
 
-    fieldIcon: {
+    fieldIconContainer: {
+        width: 40,
+        height: 40,
+        borderRadius: 10,
+        backgroundColor: "#EBF5F9",
+        justifyContent: "center",
+        alignItems: "center",
         marginRight: 12,
-        marginTop: 2,
-        color: "#fff",
     },
 
-    fieldContent: {
+    fieldTextContainer: {
         flex: 1,
+        justifyContent: "center",
     },
 
     fieldLabel: {
         fontSize: 12,
-        color: "#fff",
-        marginBottom: 2,
+        color: "#6B7C87",
+        marginBottom: 4,
         fontFamily: "Poppins-Regular",
     },
 
     fieldValue: {
         fontSize: 15,
-        color: "#fff",
-        fontWeight: "500",
-        borderBottomWidth: 1,
-        borderBottomColor: "#C5D8DC",
-        paddingBottom: 8,
+        color: "#2C3E50",
         fontFamily: "Poppins-Medium",
     },
 
     fieldInput: {
         fontSize: 15,
-        color: "#fff",
-        fontWeight: "500",
-        borderBottomWidth: 1,
-        borderBottomColor: "#C5D8DC",
-        paddingBottom: 8,
-        paddingTop: 0,
+        color: "#2C3E50",
         fontFamily: "Poppins-Medium",
-    },
-
-    passwordInputContainer: {
-        flexDirection: "row",
-        alignItems: "center",
-        borderBottomWidth: 1,
-        borderBottomColor: "#C5D8DC",
-    },
-
-    passwordInput: {
+        padding: 0,
+        margin: 0,
         flex: 1,
-        fontSize: 15,
-        color: "#fff",
-        fontWeight: "500",
-        paddingBottom: 8,
-        paddingTop: 0,
-        fontFamily: "Poppins-Medium",
     },
 
-    eyeIcon: {
-        padding: 5,
-        paddingBottom: 8,
-    },
-
-    phoneInputContainer: {
+    phoneInputWrapper: {
         flexDirection: "row",
         alignItems: "center",
-        borderBottomWidth: 1,
-        borderBottomColor: "#C5D8DC",
     },
 
     phonePrefix: {
         fontSize: 15,
-        color: "#fff",
-        fontWeight: "500",
-        paddingBottom: 8,
-        marginRight: 2,
+        color: "#2C3E50",
         fontFamily: "Poppins-Medium",
+        marginRight: 4,
     },
 
-    phoneInput: {
+    passwordInputWrapper: {
+        flexDirection: "row",
+        alignItems: "center",
+    },
+
+    passwordFieldInput: {
         flex: 1,
         fontSize: 15,
-        color: "#fff",
-        fontWeight: "500",
-        paddingBottom: 8,
-        paddingTop: 0,
+        color: "#2C3E50",
         fontFamily: "Poppins-Medium",
+        padding: 0,
+        margin: 0,
+    },
+
+    eyeIconButton: {
+        padding: 4,
     },
 
     btnRow: {
@@ -627,37 +623,76 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         paddingBottom: 30,
         paddingTop: 15,
-        backgroundColor: "#fff",
+        backgroundColor: "#F8FAFB",
+        gap: 12,
     },
 
-    primaryButton: {
-        backgroundColor: "#fff",
-        borderWidth: 1.5,
-        borderColor: "#125872",
-        paddingVertical: 12,
-        width: "48%",
-        borderRadius: 15,
+    editButton: {
+        backgroundColor: "#125872",
+        paddingVertical: 14,
+        flex: 1,
+        borderRadius: 12,
         alignItems: "center",
+        shadowColor: "#125872",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+        elevation: 3,
     },
 
-    primaryButtonText: {
-        color: "#125872",
+    editButtonText: {
+        color: "#ffffff",
+        fontSize: 15,
         fontWeight: "600",
         fontFamily: "Poppins-SemiBold",
     },
 
-    secondaryButton: {
-        backgroundColor: "#125872",
-        borderColor: "#125872",
-        borderWidth: 1,
-        paddingVertical: 12,
-        width: "48%",
-        borderRadius: 15,
+    backButton: {
+        backgroundColor: "#E8EEF1",
+        paddingVertical: 14,
+        flex: 1,
+        borderRadius: 12,
         alignItems: "center",
     },
 
-    secondaryButtonText: {
-        color: "#fff",
+    backButtonText: {
+        color: "#5A6C78",
+        fontSize: 15,
+        fontWeight: "600",
+        fontFamily: "Poppins-SemiBold",
+    },
+
+    saveButton: {
+        backgroundColor: "#28A745",
+        paddingVertical: 14,
+        flex: 1,
+        borderRadius: 12,
+        alignItems: "center",
+        shadowColor: "#28A745",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+
+    saveButtonText: {
+        color: "#ffffff",
+        fontSize: 15,
+        fontWeight: "600",
+        fontFamily: "Poppins-SemiBold",
+    },
+
+    cancelButton: {
+        backgroundColor: "#E8EEF1",
+        paddingVertical: 14,
+        flex: 1,
+        borderRadius: 12,
+        alignItems: "center",
+    },
+
+    cancelButtonText: {
+        color: "#5A6C78",
+        fontSize: 15,
         fontWeight: "600",
         fontFamily: "Poppins-SemiBold",
     },

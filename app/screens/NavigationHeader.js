@@ -35,6 +35,15 @@ function NavigationHeader({ navigation, route }) {
         // go back to the patient record view (not the parent navigator).
         setActiveScreen('PATIENT_RECORD');
       },
+      // Called by Prescription after a successful submit to return to Patient Record
+      // without showing the hosted preview modal.
+      showPatientRecord: ({ patient: requestedPatient, focusStatus: requestedFocusStatus } = {}) => {
+        if (requestedFocusStatus) setFocusStatus(requestedFocusStatus);
+        if (requestedPatient) setSelectedPatient(requestedPatient);
+        setPreviewVisible(false);
+        setPreviewUri(null);
+        setActiveScreen('PATIENT_RECORD');
+      },
       // Called by Prescription to show the preview and optionally switch underlying screen/tab
       showPreview: ({ uri, focusStatus: requestedFocusStatus, activeScreen: requestedActive, requestedPatient } = {}) => {
         if (requestedFocusStatus) setFocusStatus(requestedFocusStatus);

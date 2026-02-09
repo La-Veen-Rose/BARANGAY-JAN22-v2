@@ -12,7 +12,7 @@ import {
 import { databases, appwriteConfig, account, Query } from './appwriteConfig';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { getCurrentStaffProfile, STAFF_ROLE } from './staffProfileService';
+import { getBhwAccessiblePatientRecordOwnerFilters, getCurrentStaffProfile, STAFF_ROLE } from './staffProfileService';
 
 // ---------------------------
 // REUSABLE COMPONENTS
@@ -199,29 +199,8 @@ function SubmittedCasesList({ navigation, route, onOpenPatientRecordContent }) {
 
             const filters = [];
             if (staff.role !== STAFF_ROLE.PHYSICIAN) {
-                const workerHwId =
-                    (workerProfile && (workerProfile.healthWorkerId || workerProfile.healthWorkerID || workerProfile.healthWorkerIDNumber)) ||
-                    workerProfile?.$id;
-
-                if (!workerHwId && !userId) {
-                    Alert.alert('Error', 'Unable to identify current user. Please login again.');
-                    navigation.navigate("SelectRole");
-                    return;
-                }
-
-                if (userId && workerHwId) {
-                    // Prefer exact matches by owner identity; supports both newer and older records.
-                    filters.push(
-                        Query.or([
-                            Query.equal('recordedByUserID', userId),
-                            Query.equal('recordedByHWID', workerHwId),
-                        ])
-                    );
-                } else if (workerHwId) {
-                    filters.push(Query.equal('recordedByHWID', workerHwId));
-                } else {
-                    filters.push(Query.equal('recordedByUserID', userId));
-                }
+                const ownerFilters = await getBhwAccessiblePatientRecordOwnerFilters(workerProfile);
+                filters.push(...ownerFilters);
             }
 
             let res = await databases.listDocuments(

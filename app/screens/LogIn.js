@@ -5,17 +5,21 @@ import {
     Dimensions,
     Image,
     ImageBackground,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
     View,
-    Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { account, appwriteConfig, databases, Query } from "./appwriteConfig";
 import { registerForPushNotificationsAsync, savePushTokenForCurrentUser } from "../notifications/notificationService";
-import { STAFF_ROLE } from "./staffProfileService";
+import { getBhwAccessiblePatientRecordOwnerFilters, STAFF_ROLE, updateLastLoginAtForCurrentUser, updatePresenceForCurrentUser } from "./staffProfileService";
+import { logFailedLoginEvent, logSuspiciousLoginEvent, isIdentifierRegistered, logSuccessfulLoginEvent } from "./securityEventsService";
+import { logActivity } from './activityLogsService';
 import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold } from "@expo-google-fonts/poppins";
 
 const { width, height } = Dimensions.get('window');
@@ -78,16 +82,22 @@ function LogIn({ navigation }) {
 
         setIsLoading(true);
 
+        let workerEmail = '';
+        let workerProfile = null;
+
         try {
             // --- Always clear any existing session ---
             await deleteCurrentSession();
 
+            const trimmedHealthWorkerId = healthWorkerID.trim();
+
             // --- Step 1: Lookup profile in DB ---
+            console.log('Step 1: Looking up profile for:', trimmedHealthWorkerId);
             const staffRes = await databases.listDocuments(
                 appwriteConfig.staffDatabaseId, 
                 appwriteConfig.healthWorkersCollectionId, 
                 [
-                    Query.equal('healthWorkerID', healthWorkerID.trim())
+                    Query.equal('healthWorkerID', trimmedHealthWorkerId)
                 ]
             );
 
@@ -95,45 +105,134 @@ function LogIn({ navigation }) {
                 throw new Error('Invalid Health Worker ID.');
             }
 
-            const workerProfile = staffRes.documents[0];
-            const workerEmail = workerProfile.email;
+            workerProfile = staffRes.documents[0];
+            workerEmail = workerProfile.email;
+            console.log('Step 1 complete: Profile found for email:', workerEmail);
 
             if (!workerEmail) {
                 throw new Error('Profile error: Missing email.');
             }
 
             // --- Step 2: Authenticate user ---
+            console.log('Step 2: Creating session for:', workerEmail);
             await account.createEmailPasswordSession(workerEmail, password);
 
             const newCurrentUser = await account.get();
             const authUserId = newCurrentUser.$id;
+            console.log('Step 2 complete: Session created, authUserId:', authUserId);
+
+            // Update lastLoginAt for staff profile (HealthWorkers / Physician_Accounts)
+            console.log('Step 3: Updating lastLoginAt...');
+            try {
+                await updateLastLoginAtForCurrentUser();
+                console.log('Step 3 complete: lastLoginAt updated');
+            } catch (e) {
+                console.log('Skipping lastLoginAt update:', e?.message || String(e));
+                // Don't throw - this is optional
+            }
+            console.log('Step 4: Updating presence...');
+            try {
+                await updatePresenceForCurrentUser({ isOnline: true });
+                console.log('Step 4 complete: presence updated');
+            } catch (e) {
+                console.log('Skipping presence update:', e?.message || String(e));
+                // Don't throw - this is optional
+            }
 
             // Register and store Expo push token for this logged-in user
+            console.log('Step 5: Registering push token...');
             try {
                 const expoToken = await registerForPushNotificationsAsync();
                 if (expoToken) {
                     await savePushTokenForCurrentUser(expoToken);
+                    console.log('Step 5 complete: Push token saved');
                 }
             } catch (tokenError) {
                 console.log("Push token registration failed:", tokenError);
+                // Don't throw - this is optional
             }
 
-            // --- Step 3: Fetch patient records for this user's purok and barangay ---
+            // --- Step 6: Fetch patient records accessible to this BHW ---
+            // Access is based on the submitting BHW's HealthWorkers purok+barangay (case-insensitive),
+            // NOT the patient's address.
+            const ownerFilters = await getBhwAccessiblePatientRecordOwnerFilters(workerProfile);
             const recordsRes = await databases.listDocuments(
-                appwriteConfig.patientDatabaseId, 
-                appwriteConfig.patientRecordsCollectionId, 
+                appwriteConfig.patientDatabaseId,
+                appwriteConfig.patientRecordsCollectionId,
                 [
-                    Query.equal('purok', workerProfile.purok),
-                    Query.equal('barangay', workerProfile.barangay)
+                    ...ownerFilters,
+                    Query.orderDesc('$createdAt'),
+                    Query.limit(100),
                 ]
             );
 
             const records = recordsRes.documents || [];
+            console.log('Step 6 complete: Found', records.length, 'patient records');
 
+            try {
+                await logSuccessfulLoginEvent({
+                    userEmail: workerEmail,
+                    accessPoint: 'Mobile: BHW',
+                    authUserId,
+                });
+            } catch (logError) {
+                console.log('Security event log skipped:', logError?.message || String(logError));
+            }
+
+            try {
+                await logActivity({
+                    action: 'Login',
+                    description: 'Successful login',
+                    staffRole: STAFF_ROLE.BHW,
+                    workerProfile,
+                });
+            } catch (e) {
+                console.log('Activity log skipped:', e?.message || String(e));
+            }
+
+            console.log('Login successful! Navigating to Main...');
             navigateToMain(navigation, authUserId, workerProfile, records, STAFF_ROLE.BHW);
 
         } catch (error) {
             console.error('Login Error:', error);
+            console.error('Error details - Name:', error.name);
+            console.error('Error details - Message:', error.message);
+            console.error('Error details - Code:', error.code);
+            console.error('Error details - Type:', error.type);
+
+            let securityEventResult = null;
+            try {
+                if (error.message.includes('Invalid Health Worker ID')) {
+                    const registered = await isIdentifierRegistered(healthWorkerID);
+                    if (!registered) {
+                        securityEventResult = await logSuspiciousLoginEvent({
+                            attemptedIdentifier: healthWorkerID,
+                            accessPoint: 'Mobile: BHW',
+                        });
+                    } else {
+                        securityEventResult = await logFailedLoginEvent({
+                            userEmail: workerEmail || healthWorkerID,
+                            accessPoint: 'Mobile: BHW',
+                            authUserId: workerProfile?.auth_user_id || null,
+                        });
+                    }
+                } else if (error.name === 'AppwriteException' && error.message.includes('Invalid credentials')) {
+                    securityEventResult = await logFailedLoginEvent({
+                        userEmail: workerEmail || healthWorkerID,
+                        accessPoint: 'Mobile: BHW',
+                        authUserId: workerProfile?.auth_user_id || null,
+                    });
+                } else {
+                    securityEventResult = await logFailedLoginEvent({
+                        userEmail: workerEmail || healthWorkerID,
+                        accessPoint: 'Mobile: BHW',
+                        authUserId: workerProfile?.auth_user_id || null,
+                    });
+                }
+            } catch (logError) {
+                console.log('Security event log skipped:', logError?.message || String(logError));
+            }
+
             let errorMessage = 'Login failed. Please check your credentials.';
 
             if (error.message.includes('Invalid Health Worker ID')) {
@@ -144,6 +243,10 @@ function LogIn({ navigation }) {
                 errorMessage = 'Invalid Health Worker ID or Password.';
             }
 
+            if (securityEventResult?.eventType === 'Account locked') {
+                errorMessage = 'Account locked after multiple failed login attempts.';
+            }
+
             Alert.alert('Login Failed', errorMessage);
 
         } finally {
@@ -152,71 +255,81 @@ function LogIn({ navigation }) {
     };
 
     return (
-        <ImageBackground
+        <KeyboardAvoidingView
             style={styles.background}
-            source={require("../assets/bg-blue.png")}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
-            <View style={styles.headerContainer}>
-                <View style={styles.header}>
-                    <Text style={styles.welcomeText}>Mabuhay og Madayaw,</Text>
-                    <Text style={styles.cityText}>Tagumeños!</Text>
-                    <Text style={styles.subText}>Welcome to RAVEN!</Text>
-                </View>
-            </View>
-
-            <View style={styles.loginBox}>
-                <Text style={styles.loginTitle}>Login</Text>
-
-
-                <View style={styles.inputContainer}>
-                    <Ionicons name="id-card" size={15} color="#125872" style={styles.icon} />
-                    <TextInput
-                        style={styles.input}
-                        placeholder="Health Worker ID"
-                        placeholderTextColor="#C9C9C9"
-                        value={healthWorkerID}
-                        onChangeText={sethealthWorkerID}
-                        editable={!isLoading}
-                        autoCapitalize="none"
-                    />
-                </View>
-
-                <View style={styles.inputContainer}>
-                    <Ionicons name="lock-closed" size={15} color="#125872" style={styles.icon} />
-                    <TextInput
-                        style={styles.input}
-                        placeholder="Password"
-                        placeholderTextColor="#C9C9C9"
-                        secureTextEntry={!showPassword}
-                        value={password}
-                        onChangeText={setPassword}
-                        editable={!isLoading}
-                    />
-                    <TouchableOpacity onPress={() => setShowPassword(!showPassword)} disabled={isLoading}>
-                        <Ionicons
-                            name={showPassword ? "eye-off" : "eye"}
-                            size={20}
-                            color="#125872"
-                            style={styles.eyeIcon}
-                        />
-                    </TouchableOpacity>
-                </View>
-
-                <TouchableOpacity
-                    style={styles.loginButton}
-                    onPress={handleLogin}
-                    disabled={isLoading}
+            <ImageBackground
+                style={styles.background}
+                source={require("../assets/bg-blue.png")}
+            >
+                <ScrollView
+                    contentContainerStyle={styles.scrollContent}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
                 >
-                    {isLoading ? (
-                        <ActivityIndicator color="#fff" />
-                    ) : (
-                        <Text style={styles.loginButtonText}>Login</Text>
-                    )}
-                </TouchableOpacity>
+                    <View style={styles.headerContainer}>
+                        <View style={styles.header}>
+                            <Text style={styles.welcomeText}>Mabuhay og Madayaw,</Text>
+                            <Text style={styles.cityText}>Tagumeños!</Text>
+                            <Text style={styles.subText}>Welcome to RAVEN!</Text>
+                        </View>
+                    </View>
 
-                <Image source={require("../assets/CityHall-img.png")} style={styles.footerImage} />
-            </View>
-        </ImageBackground>
+                    <View style={styles.loginBox}>
+                        <Text style={styles.loginTitle}>Login</Text>
+
+                        <View style={styles.inputContainer}>
+                            <Ionicons name="id-card" size={15} color="#125872" style={styles.icon} />
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Health Worker ID"
+                                placeholderTextColor="#C9C9C9"
+                                value={healthWorkerID}
+                                onChangeText={sethealthWorkerID}
+                                editable={!isLoading}
+                                autoCapitalize="none"
+                            />
+                        </View>
+
+                        <View style={styles.inputContainer}>
+                            <Ionicons name="lock-closed" size={15} color="#125872" style={styles.icon} />
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Password"
+                                placeholderTextColor="#C9C9C9"
+                                secureTextEntry={!showPassword}
+                                value={password}
+                                onChangeText={setPassword}
+                                editable={!isLoading}
+                            />
+                            <TouchableOpacity onPress={() => setShowPassword(!showPassword)} disabled={isLoading}>
+                                <Ionicons
+                                    name={showPassword ? "eye-off" : "eye"}
+                                    size={20}
+                                    color="#125872"
+                                    style={styles.eyeIcon}
+                                />
+                            </TouchableOpacity>
+                        </View>
+
+                        <TouchableOpacity
+                            style={styles.loginButton}
+                            onPress={handleLogin}
+                            disabled={isLoading}
+                        >
+                            {isLoading ? (
+                                <ActivityIndicator color="#fff" />
+                            ) : (
+                                <Text style={styles.loginButtonText}>Login</Text>
+                            )}
+                        </TouchableOpacity>
+
+                        <Image source={require("../assets/CityHall-img.png")} style={styles.footerImage} />
+                    </View>
+                </ScrollView>
+            </ImageBackground>
+        </KeyboardAvoidingView>
     );
 }
 
@@ -227,6 +340,7 @@ const styles = StyleSheet.create({
     welcomeText: { fontSize: 16, color: "#125872", fontWeight: "bold", lineHeight: 20, fontFamily: "Poppins-Bold", letterSpacing: -1, marginBottom: -5},
     cityText: { fontSize: 42, color: "#125872", fontWeight: "900", lineHeight: 45, fontFamily: "Poppins-Bold", letterSpacing: -2, paddingTop: 5, zIndex: 10},
     subText: { fontSize: 13, color: "#125872", fontStyle: "italic", lineHeight: 12, fontFamily: "Poppins-Regular", letterSpacing: -1, zIndex: 10, paddingTop: 5},
+    scrollContent: { flexGrow: 1 },
     loginBox: { backgroundColor: "#226B85", borderTopLeftRadius: 50, padding: 35, paddingBottom: 0, width: '100%', alignSelf: 'flex-end' },
     loginTitle: { color: "#fff", fontSize: 30, fontWeight: "900", lineHeight: 42, paddingBottom: 20, fontFamily: "Poppins-Bold", letterSpacing: -1 },
     inputContainer: { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", borderRadius: 10, paddingHorizontal: 10, marginVertical: 15, width: "100%" },

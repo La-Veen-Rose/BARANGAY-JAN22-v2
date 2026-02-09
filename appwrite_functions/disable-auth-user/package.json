@@ -1,0 +1,8 @@
+{
+  "name": "disable-auth-user",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "node-appwrite": "^13.0.0"
+  }
+}
