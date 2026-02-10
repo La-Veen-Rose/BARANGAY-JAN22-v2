@@ -15,7 +15,12 @@
       "autoIncrement": true,
       "android": {
         "buildType": "apk"
-      }
+      },
+      "env": {
+        "EXPO_DEBUG": "true",
+        "NODE_ENV": "production"
+      },
+      "node": "22.12.0"
     }
   },
   "submit": {
