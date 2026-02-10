@@ -13,7 +13,11 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.raven.mobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "jsEngine": "hermes",
@@ -23,7 +27,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.raven.mobile",
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": "google-services.json"
     },
     "web": {
       "favicon": "./app/assets/favicon.png"
